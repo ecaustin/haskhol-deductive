@@ -1,0 +1,78 @@
+name:          haskhol-deductive
+version:       0.1.0
+synopsis:      HaskHOL libraries for higher level deductive reasoning.
+description:   More details can be found at the following page:  
+               http://haskhol.org. 
+license:       BSD3
+license-file:  LICENSE
+author:        Evan Austin <ecaustin@ittc.ku.edu>
+maintainer:    Evan Austin <ecaustin@ittc.ku.edu>
+category:      Theorem Provers
+cabal-version: >=1.18
+build-type:    Simple
+stability:     experimental
+homepage:      http://haskhol.org
+
+library
+    default-language:  Haskell2010
+    default-extensions: ConstraintKinds, DeriveDataTypeable, OverloadedStrings,
+                        QuasiQuotes, TemplateHaskell, TypeFamilies
+    build-depends:   base >= 4.7
+                   , template-haskell >= 2.9
+                   , pretty >= 1.1
+                   , haskhol-core >= 1.1
+
+    exposed-modules:
+      HaskHOL.Deductive
+      HaskHOL.Lib.Equal
+      HaskHOL.Lib.Bool
+      HaskHOL.Lib.DRule
+      HaskHOL.Lib.Tactics
+      HaskHOL.Lib.Itab
+      HaskHOL.Lib.Simp
+      HaskHOL.Lib.Theorems
+      HaskHOL.Lib.IndDefs
+      HaskHOL.Lib.Classic
+      HaskHOL.Lib.Trivia
+      HaskHOL.Lib.Canon
+      HaskHOL.Lib.Meson
+      HaskHOL.Lib.Quot
+      HaskHOL.Lib.Misc
+      HaskHOL.Lib.TypeQuant
+
+    exposed: True
+    buildable: True
+    hs-source-dirs: src
+
+    other-modules:
+      HaskHOL.Lib.Bool.Base
+      HaskHOL.Lib.Bool.Context
+      HaskHOL.Lib.Theorems.Base
+      HaskHOL.Lib.Theorems.Context
+      HaskHOL.Lib.IndDefs.Base
+      HaskHOL.Lib.IndDefs.Context 
+      HaskHOL.Lib.Classic.A
+      HaskHOL.Lib.Classic.A.Base
+      HaskHOL.Lib.Classic.A.Context
+      HaskHOL.Lib.Classic.B
+      HaskHOL.Lib.Classic.B.Base
+      HaskHOL.Lib.Classic.B.Context
+      HaskHOL.Lib.Classic.C
+      HaskHOL.Lib.Classic.C.Base
+      HaskHOL.Lib.Classic.C.Context
+      HaskHOL.Lib.Classic.Base
+      HaskHOL.Lib.Classic.Context
+      HaskHOL.Lib.Trivia.A
+      HaskHOL.Lib.Trivia.A.Base
+      HaskHOL.Lib.Trivia.A.Context
+      HaskHOL.Lib.Trivia.Base
+      HaskHOL.Lib.Trivia.Context
+      HaskHOL.Lib.TypeQuant.Context
+             
+    ghc-prof-options: -prof -fprof-auto
+    ghc-options: -Wall -O2
+
+source-repository head
+  type: git 
+  location: git://github.com/ecaustin/haskhol-deductive.git
+ 
