@@ -14,7 +14,10 @@ import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Theorems.Context
 import HaskHOL.Lib.IndDefs.Base
 
-extendTheory ctxtTheorems "IndDefs" $
+templateTypes ctxtTheorems "IndDefs"
+
+ctxtIndDefs :: TheoryPath IndDefsType
+ctxtIndDefs = extendTheory ctxtTheorems $
     mapM_ addMonoThm [ thmMONO_AND, thmMONO_OR, thmMONO_IMP
                      , thmMONO_NOT, thmMONO_EXISTS, thmMONO_FORALL ]
 

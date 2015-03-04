@@ -13,12 +13,14 @@ import HaskHOL.Lib.Simp
 import HaskHOL.Lib.IndDefs.Context
 import HaskHOL.Lib.Classic.A.Base
 
--- generate template types
-extendTheory ctxtIndDefs "ClassicA" $
-        do parseAsBinder "@"
-           newConstant "@" "(A->bool)->A"
-           sequence_ [axETA', axSELECT']
-           void defCOND'
+templateTypes ctxtIndDefs "ClassicA"
+
+ctxtClassicA :: TheoryPath ClassicAType
+ctxtClassicA = extendTheory ctxtIndDefs $
+    do parseAsBinder "@"
+       newConstant "@" "(A->bool)->A"
+       sequence_ [axETA', axSELECT']
+       void defCOND'
 
 templateProvers 'ctxtClassicA
 

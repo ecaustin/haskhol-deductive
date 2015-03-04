@@ -49,7 +49,7 @@ thmEXCLUDED_MIDDLE = cacheProof "thmEXCLUDED_MIDDLE" ctxtClassicB $
 ruleSELECT :: (BasicConvs thry, ClassicBCtxt thry, HOLThmRep thm cls thry) 
            => thm -> HOL cls thry HOLThm
 ruleSELECT pthm = 
-    do p <- serve [classicB| P:A->bool |]
+    do p <- toHTm "P:A->bool"
        th <- toHThm pthm
        pth <- ruleSELECT_pth
        case rand $ concl th of

@@ -13,8 +13,10 @@ import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Classic.A.Context
 import HaskHOL.Lib.Classic.B.Base
 
--- generate template types
-extendTheory ctxtClassicA "ClassicB" $
+templateTypes ctxtClassicA "ClassicB"
+
+ctxtClassicB :: TheoryPath ClassicBType
+ctxtClassicB = extendTheory ctxtClassicA $
     extendBasicRewrites =<< sequence [ thmSELECT_REFL ]
 
 templateProvers 'ctxtClassicB

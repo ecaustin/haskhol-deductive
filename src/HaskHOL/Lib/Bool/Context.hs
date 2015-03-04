@@ -24,7 +24,10 @@ import HaskHOL.Core
 
 import HaskHOL.Lib.Bool.Base
 
-extendTheory ctxtBase "Bool" $
+templateTypes ctxtBase "Bool"
+
+ctxtBool :: TheoryPath BoolType
+ctxtBool = extendTheory ctxtBase $
     do parseAsPrefix "~"
        mapM_ parseAsInfix [ ("==>", (4, "right"))
                           , ("\\/", (6, "right"))

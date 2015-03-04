@@ -15,8 +15,10 @@ import HaskHOL.Lib.IndDefs
 import HaskHOL.Lib.Classic.C.Context
 import HaskHOL.Lib.Classic.Base
 
--- generate template types
-extendTheory ctxtClassicC "Classic" $
+templateTypes ctxtClassicC "Classic"
+
+ctxtClassic :: TheoryPath ClassicType
+ctxtClassic = extendTheory ctxtClassicC $
     do mthm <- thmMONO_COND
        addMonoThm mthm
        cth <- thmCOND_CONG

@@ -13,8 +13,10 @@ import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Bool.Context
 import HaskHOL.Lib.Theorems.Base
 
+templateTypes ctxtBool "Theorems"
 
-extendTheory ctxtBool "Theorems" $
+ctxtTheorems :: TheoryPath TheoremsType
+ctxtTheorems = extendTheory ctxtBool $
     do extendBasicRewrites =<< sequence [ thmREFL_CLAUSE
                                         , thmEQ_CLAUSES
                                         , thmNOT_CLAUSES_WEAK

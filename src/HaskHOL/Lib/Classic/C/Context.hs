@@ -15,8 +15,10 @@ import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Classic.B
 import HaskHOL.Lib.Classic.C.Base
 
--- generate template types
-extendTheory ctxtClassicB "ClassicC" $
+templateTypes ctxtClassicB "ClassicC"
+
+ctxtClassicC :: TheoryPath ClassicCType
+ctxtClassicC = extendTheory ctxtClassicB $
     extendBasicRewrites =<< 
       sequence [ruleCONJUNCT1 thmNOT_CLAUSES, thmCOND_CLAUSES]
 

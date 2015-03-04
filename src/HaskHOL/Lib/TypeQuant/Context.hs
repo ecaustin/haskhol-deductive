@@ -14,8 +14,10 @@ import HaskHOL.Lib.Simp
 
 import HaskHOL.Lib.Trivia.Context
 
--- generate template types
-extendTheory ctxtTrivia "TypeQuant" $ return ()
+templateTypes ctxtTrivia "TypeQuant"
+
+ctxtTypeQuant :: TheoryPath TypeQuantType
+ctxtTypeQuant = extendTheory ctxtTrivia $ return ()
 
 templateProvers 'ctxtTypeQuant
 

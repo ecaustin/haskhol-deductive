@@ -14,8 +14,10 @@ import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Classic.Context
 import HaskHOL.Lib.Trivia.A.Base
 
--- generate template types
-extendTheory ctxtClassic "TriviaA" $
+templateTypes ctxtClassic "TriviaA"
+
+ctxtTriviaA :: TheoryPath TriviaAType
+ctxtTriviaA = extendTheory ctxtClassic $
     do parseAsInfix ("o", (26, "right"))
        sequence_ [defO', defI']
        void tyDefOne'

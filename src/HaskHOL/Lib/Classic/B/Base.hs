@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
 module HaskHOL.Lib.Classic.B.Base where
 
 import HaskHOL.Core
@@ -52,7 +51,7 @@ thmEXISTS = cacheProof "thmEXISTS" ctxtClassicA $
 -- basic selection conversions
 convSELECT :: (BasicConvs thry, ClassicACtxt thry) => Conversion cls thry
 convSELECT = Conv $ \ tm ->
-    do p <- serve [classicA| P:A->bool |]
+    do p <- toHTm "P:A->bool"
        pth <- convSELECT_pth
        case findTerm (is_epsok tm) tm of
          Just (Comb _ lam@(Abs (Var _ ty) _)) -> 
