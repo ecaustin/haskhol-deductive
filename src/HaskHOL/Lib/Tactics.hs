@@ -90,14 +90,14 @@ module HaskHOL.Lib.Tactics
     , composeInsts
     ) where
 
-import HaskHOL.Core hiding (empty)
+import HaskHOL.Core hiding (empty, (<$>))
 
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Bool.Context
 import HaskHOL.Lib.Equal
 import HaskHOL.Lib.DRule
 
-import Text.PrettyPrint
+import Text.PrettyPrint.Leijen.Text.Monadic hiding (bool)
 
 -- Types
 
@@ -108,24 +108,21 @@ type JustificationList cls thry =
 data Goal = Goal [(Text, HOLThm)] HOLTerm deriving Eq
 
 instance ShowHOL Goal where
-    showHOL g = do ctxt <- prepHOLContext
-                   return $! ppGoal ctxt g
+    showHOL = liftM show . ppGoal
 
-ppGoal :: HOLContext thry -> Goal -> String
-ppGoal ctxt (Goal asl w) = 
+ppGoal :: Goal -> HOL cls thry Doc
+ppGoal (Goal asl w) = 
     let asl' = if null asl then empty
-               else ppASL ctxt 0 (reverse asl) in
-      render $ asl' $+$ text "-----" $+$ text (ppTerm ctxt w)
+               else ppASL 0 (reverse asl) in
+      asl' <$> text "-----" <$> ppTerm 0 w
 
-ppASL :: HOLContext thry -> Int -> [(Text, HOLThm)] -> Doc
-ppASL ctxt = ppASLrec
-  where ppASLrec :: Int -> [(Text, HOLThm)] -> Doc
-        ppASLrec _ [] = empty
-        ppASLrec n ((s, th):rest) = 
-            let s' = if textNull s then empty
-                     else lparen <> text (unpack s) <> rparen in
-              int n <+> text (ppTerm ctxt $ concl th) <> s' $+$
-                ppASLrec (n+1) rest
+ppASL :: Int -> [(Text, HOLThm)] -> HOL cls thry Doc
+ppASL _ [] = empty
+ppASL n ((s, th):rest) = 
+    let s' = if textNull s then empty
+             else lparen <> text s <> rparen in
+      int n <+> ppTerm 0 (concl th) <> s' <$>
+      ppASL (n+1) rest
 
 -- metavariables, instantiation, goal list, and justification
 data GoalState cls thry = 
@@ -142,13 +139,12 @@ instance ShowHOL [GoalState cls thry] where
           ppGoalState p' gs
 -}
          
-ppGoalState :: HOLContext thry -> Int -> GoalState cls thry -> String
-ppGoalState _ _ (GS _ [] _) = "No subgoals"
-ppGoalState ctxt x (GS _ gls _) = 
+ppGoalState :: Int -> GoalState cls thry -> HOL cls thry Doc
+ppGoalState _ (GS _ [] _) = text "No subgoals"
+ppGoalState x (GS _ gls _) = 
     let n = length gls in
-      render
-        (int x <+> text "subgoal(s)" <+> parens (int n <+> text "total") $+$
-         (vcat . map (text . ppGoal ctxt) $ take x gls))
+      int x <+> text "subgoal(s)" <+> parens (int n <+> text "total") <$>
+      (vcat . mapM ppGoal $ take x gls)
 
 type Refinement cls thry = GoalState cls thry -> HOL cls thry (GoalState cls thry)
 
