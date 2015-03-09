@@ -7,7 +7,6 @@ import HaskHOL.Lib.Classic
 import HaskHOL.Lib.Classic.Context
 import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Tactics
-import HaskHOL.Lib.Simp
 
 thmEXISTS_ONE_REP :: ClassicCtxt thry => HOL cls thry HOLThm
 thmEXISTS_ONE_REP = cacheProof "thmEXISTS_ONE_REP" ctxtClassic $
@@ -26,7 +25,7 @@ defI' :: BoolCtxt thry => HOL Theory thry HOLThm
 defI' = newDefinition "I"
     [str| I = \x:A. x |]
 
-tyDefOne' :: (BasicConvs thry, ClassicCtxt thry) => HOL Theory thry HOLThm
+tyDefOne' :: ClassicCtxt thry => HOL Theory thry HOLThm
 tyDefOne' = newTypeDefinition "1" "one_ABS" "one_REP" thmEXISTS_ONE_REP
 
 defONE' :: BoolCtxt thry => HOL Theory thry HOLThm

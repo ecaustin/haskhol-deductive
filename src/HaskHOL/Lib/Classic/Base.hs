@@ -8,7 +8,7 @@ import HaskHOL.Lib.Simp
 
 import HaskHOL.Lib.Classic.C
 
-thmMONO_COND :: (BasicConvs thry, ClassicCCtxt thry) => HOL cls thry HOLThm
+thmMONO_COND :: ClassicCCtxt thry => HOL cls thry HOLThm
 thmMONO_COND = cacheProof "thmMONO_COND" ctxtClassicC $
     prove [str| (A ==> B) /\ (C ==> D) ==> 
                 (if b then A else C) ==> 
@@ -17,7 +17,7 @@ thmMONO_COND = cacheProof "thmMONO_COND" ctxtClassicC $
       tacBOOL_CASES "b:bool" `_THEN`
       tacASM_REWRITE_NIL
 
-thmCOND_CONG :: (BasicConvs thry, ClassicCCtxt thry) => HOL cls thry HOLThm
+thmCOND_CONG :: ClassicCCtxt thry => HOL cls thry HOLThm
 thmCOND_CONG = cacheProof "thmCOND_CONG" ctxtClassicC $
     ruleTAUT [str| (g = g') ==>
                    (g' ==> (t = t')) ==>
@@ -25,18 +25,18 @@ thmCOND_CONG = cacheProof "thmCOND_CONG" ctxtClassicC $
                    ((if g then t else e) = 
                    (if g' then t' else e')) |]
        
-thmCOND_EQ_CLAUSE :: (BasicConvs thry, ClassicCCtxt thry) => HOL cls thry HOLThm
+thmCOND_EQ_CLAUSE :: ClassicCCtxt thry => HOL cls thry HOLThm
 thmCOND_EQ_CLAUSE = cacheProof "thmCOND_EQ_CLAUSE" ctxtClassicC $
     prove "(if x = x then y else z) = y" tacREWRITE_NIL
 
-inductBool :: (BasicConvs thry, ClassicCCtxt thry) => HOL cls thry HOLThm
+inductBool :: ClassicCCtxt thry => HOL cls thry HOLThm
 inductBool = cacheProof "inductBool" ctxtClassicC $
     prove [str| !P. P F /\ P T ==> !x. P x |] $
       _REPEAT tacSTRIP `_THEN`
       tacDISJ_CASES (ruleSPEC "x:bool" thmBOOL_CASES_AX) `_THEN`
       tacASM_REWRITE_NIL
 
-recursionBool :: (BasicConvs thry, ClassicCCtxt thry) => HOL cls thry HOLThm
+recursionBool :: ClassicCCtxt thry => HOL cls thry HOLThm
 recursionBool = cacheProof "recursionBool" ctxtClassicC $
     prove [str| !a b:A. ?f. f F = a /\ f T = b |] $
       _REPEAT tacGEN `_THEN`

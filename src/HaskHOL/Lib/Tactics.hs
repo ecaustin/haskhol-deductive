@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, PatternSynonyms, 
-             TypeSynonymInstances, UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeSynonymInstances, 
+             UndecidableInstances #-}
 {-|
   Module:    HaskHOL.Lib.Tactics
   Copyright: (c) The University of Kansas 2013
@@ -107,7 +107,7 @@ type JustificationList cls thry =
 
 data Goal = Goal [(Text, HOLThm)] HOLTerm deriving Eq
 
-instance ShowHOL Goal where
+instance ShowHOL cls thry Goal where
     showHOL = liftM show . ppGoal
 
 ppGoal :: Goal -> HOL cls thry Doc
@@ -128,16 +128,14 @@ ppASL n ((s, th):rest) =
 data GoalState cls thry = 
     GS ([HOLTerm], Instantiation) [Goal] (Justification cls thry)
 
-{-
-instance ShowHOL [GoalState cls thry] where
-    showHOL [] = return "Empty goalstack"
-    showHOL (gs:[]) = 
-        ppGoalState 1 gs
-    showHOL (gs@(GS _ g _):GS _ g0 _:_) =
+instance ShowHOL cls thry (GoalState cls thry) where
+    showHOL = liftM show . ppGoalState 1
+    showHOLList [] = return "Empty goalstack"
+    showHOLList (gs:[]) = showHOL gs
+    showHOLList (gs@(GS _ g _):GS _ g0 _:_) =
         let p = length g - length g0
             p' = if p < 1 then 1 else p + 1 in
-          ppGoalState p' gs
--}
+          liftM show $ ppGoalState p' gs
          
 ppGoalState :: Int -> GoalState cls thry -> HOL cls thry Doc
 ppGoalState _ (GS _ [] _) = text "No subgoals"

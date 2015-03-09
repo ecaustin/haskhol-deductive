@@ -20,8 +20,7 @@ thmEXCLUDED_MIDDLE2 :: ClassicBCtxt thry => HOL cls thry HOLThm
 thmEXCLUDED_MIDDLE2 = cacheProof "thmEXCLUDED_MIDDLE2" ctxtClassicB $
     ruleITAUT [str| p \/ T <=> T |]
 
-thmEXCLUDED_MIDDLE :: (BasicConvs thry, ClassicBCtxt thry)
-                   => HOL cls thry HOLThm
+thmEXCLUDED_MIDDLE :: ClassicBCtxt thry => HOL cls thry HOLThm
 thmEXCLUDED_MIDDLE = cacheProof "thmEXCLUDED_MIDDLE" ctxtClassicB $
     prove [str| !t. t \/ ~t |] $
       tacGEN `_THEN` 
@@ -46,7 +45,7 @@ thmEXCLUDED_MIDDLE = cacheProof "thmEXCLUDED_MIDDLE" ctxtClassicB $
              
 
 -- basic selection operator rule
-ruleSELECT :: (BasicConvs thry, ClassicBCtxt thry, HOLThmRep thm cls thry) 
+ruleSELECT :: (ClassicBCtxt thry, HOLThmRep thm cls thry) 
            => thm -> HOL cls thry HOLThm
 ruleSELECT pthm = 
     do p <- toHTm "P:A->bool"
@@ -57,13 +56,12 @@ ruleSELECT pthm =
              ruleCONV convBETA =<< 
                ruleMP (fromJust $ rulePINST [(tyA, ty)] [(p, lam)] pth) th
          _ -> fail "ruleSELECT"
-  where ruleSELECT_pth :: (BasicConvs thry, ClassicBCtxt thry) 
-                       => HOL cls thry HOLThm
+  where ruleSELECT_pth :: ClassicBCtxt thry => HOL cls thry HOLThm
         ruleSELECT_pth = cacheProof "ruleSELECT_pth" ctxtClassicB $
             prove "(?) (P:A->bool) ==> P((@) P)" $
               tacSIMP [axSELECT, axETA]
 
-thmBOOL_CASES_AX :: (BasicConvs thry, ClassicBCtxt thry) => HOL cls thry HOLThm
+thmBOOL_CASES_AX :: ClassicBCtxt thry => HOL cls thry HOLThm
 thmBOOL_CASES_AX = cacheProof "thmBOOL_CASES_AX" ctxtClassicB $
     prove [str| !t. (t <=> T) \/ (t <=> F) |] $
       tacGEN `_THEN` 
@@ -71,17 +69,16 @@ thmBOOL_CASES_AX = cacheProof "thmBOOL_CASES_AX" ctxtClassicB $
       tacASM_REWRITE_NIL
 
 -- classically based tactics
-tacBOOL_CASES' :: (BasicConvs thry, ClassicBCtxt thry) => HOLTerm 
-               -> Tactic cls thry
+tacBOOL_CASES' :: ClassicBCtxt thry => HOLTerm -> Tactic cls thry
 tacBOOL_CASES' p g = 
     do th <- ruleSPEC p thmBOOL_CASES_AX
        tacSTRUCT_CASES th g
 
-tacBOOL_CASES :: (BasicConvs thry, ClassicBCtxt thry, HOLTermRep tm cls thry) 
+tacBOOL_CASES :: (ClassicBCtxt thry, HOLTermRep tm cls thry) 
               => tm -> Tactic cls thry
 tacBOOL_CASES p = liftM1 tacBOOL_CASES' (toHTm p)
 
-tacASM_CASES :: (BasicConvs thry, ClassicBCtxt thry, HOLTermRep tm cls thry) 
+tacASM_CASES :: (ClassicBCtxt thry, HOLTermRep tm cls thry) 
              => tm -> Tactic cls thry
 tacASM_CASES t g = 
     do th <- ruleSPEC t thmEXCLUDED_MIDDLE
@@ -90,7 +87,7 @@ tacASM_CASES t g =
 -- tautology checker for classical logic
 
 -- depends on ordering of terms as prepared by findTerms, probably not good
-rtaut_tac :: (BasicConvs thry, ClassicBCtxt thry) => Tactic cls thry
+rtaut_tac :: ClassicBCtxt thry => Tactic cls thry
 rtaut_tac g@(Goal _ w) = 
     let ok t = typeOf t == tyBool && isJust (findTerm isVar t) && t `freeIn` w
         tac gl = do tm <- liftMaybe "rtaut_tac" . tryHead . sort freeIn $ 
@@ -100,26 +97,25 @@ rtaut_tac g@(Goal _ w) =
       (tacREWRITE_NIL `_THEN`
        (tacREWRITE_NIL `_THEN` tac)) g
 
-tTAUT_TAC :: (BasicConvs thry, ClassicBCtxt thry) => Tactic cls thry
+tTAUT_TAC :: ClassicBCtxt thry => Tactic cls thry
 tTAUT_TAC = _REPEAT (tacGEN `_ORELSE` tacCONJ) `_THEN` _REPEAT rtaut_tac
 
-ruleTAUT' :: (BasicConvs thry, ClassicBCtxt thry) => HOLTerm 
-          -> HOL cls thry HOLThm
+ruleTAUT' :: ClassicBCtxt thry => HOLTerm -> HOL cls thry HOLThm
 ruleTAUT' tm = prove tm tTAUT_TAC
 
-ruleTAUT :: (BasicConvs thry, HOLTermRep tm cls thry, ClassicBCtxt thry) => tm 
+ruleTAUT :: (HOLTermRep tm cls thry, ClassicBCtxt thry) => tm 
          -> HOL cls thry HOLThm
 ruleTAUT = ruleTAUT' <=< toHTm
 
-thmNOT_CLAUSES :: (BasicConvs thry, ClassicBCtxt thry) => HOL cls thry HOLThm
+thmNOT_CLAUSES :: ClassicBCtxt thry => HOL cls thry HOLThm
 thmNOT_CLAUSES = cacheProof "thmNOT_CLAUSES" ctxtClassicB $
     ruleTAUT [str| (!t. ~ ~t <=> t) /\ (~T <=> F) /\ (~F <=> T) |]
 
-thmNOT_IMP :: (BasicConvs thry, ClassicBCtxt thry) => HOL cls thry HOLThm
+thmNOT_IMP :: ClassicBCtxt thry => HOL cls thry HOLThm
 thmNOT_IMP = cacheProof "thmNOT_IMP" ctxtClassicB $
     ruleTAUT [str| !t1 t2. ~(t1 ==> t2) <=> t1 /\ ~t2 |]
 
-thmCOND_CLAUSES :: (BasicConvs thry, ClassicBCtxt thry) => HOL cls thry HOLThm
+thmCOND_CLAUSES :: ClassicBCtxt thry => HOL cls thry HOLThm
 thmCOND_CLAUSES = cacheProof "thmCOND_CLAUSES" ctxtClassicB $
     prove [str| !(t1:A) t2. ((if T then t1 else t2) = t1) /\ 
                             ((if F then t1 else t2) = t2) |] $

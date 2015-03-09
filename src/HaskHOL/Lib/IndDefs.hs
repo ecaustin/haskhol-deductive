@@ -50,7 +50,7 @@ ruleRIGHT_BETAS tms thm =
     foldlM (\ a b -> ruleCONV (convRAND convBETA) #<< 
                        ruleAP_THM a b) thm tms
 
-ruleEXISTS_EQUATION :: (BasicConvs thry, IndDefsCtxt thry) => HOLTerm -> HOLThm 
+ruleEXISTS_EQUATION :: IndDefsCtxt thry => HOLTerm -> HOLThm 
                     -> HOL cls thry HOLThm
 ruleEXISTS_EQUATION tm thm =
     do (l, r, p, pL) <- liftEither "ruleEXISTS_EQUATION: mkTerms" $
@@ -61,8 +61,7 @@ ruleEXISTS_EQUATION tm thm =
        th1 <- ruleISPECL [p, r] ruleEXISTS_EQUATION_pth
        th2 <- liftM (fromRight . ruleSYM) $ runConv convBETA pL
        ruleMP th1 =<< ruleGEN l =<< ruleDISCH tm #<< primEQ_MP th2 thm
-  where ruleEXISTS_EQUATION_pth :: (BasicConvs thry, IndDefsCtxt thry) 
-                                => HOL cls thry HOLThm
+  where ruleEXISTS_EQUATION_pth :: IndDefsCtxt thry => HOL cls thry HOLThm
         ruleEXISTS_EQUATION_pth = 
             cacheProof "ruleEXISTS_EQUATION_pth" ctxtIndDefs $
               do t <- toHTm "t:A"
@@ -383,7 +382,7 @@ tacApplyMono tacs g@(Goal _ w) =
                            tryFind (\ (k, t) -> if k == cn then t g else fail "") tacs
       _ -> fail "tacApplyMono: not an implication"
 
-tacMONO :: (BasicConvs thry, IndDefsCtxt thry) => Tactic cls thry
+tacMONO :: IndDefsCtxt thry => Tactic cls thry
 tacMONO g = 
     do acid <- openLocalStateHOL (MonoThms [])
        thms <- queryHOL acid GetMonos
@@ -399,11 +398,9 @@ tacMONO g =
                              _ -> ""
                  return ((c, tacBackChain th `_THEN` _REPEAT tacCONJ) : l)
 
-proveMonotonicityHyps :: (BasicConvs thry, IndDefsCtxt thry) => HOLThm 
-                      -> HOL cls thry HOLThm
+proveMonotonicityHyps :: IndDefsCtxt thry => HOLThm -> HOL cls thry HOLThm
 proveMonotonicityHyps thm = 
-    let proveFun :: (BasicConvs thry, IndDefsCtxt thry) => HOLTerm 
-                 -> HOL cls thry HOLThm
+    let proveFun :: IndDefsCtxt thry => HOLTerm -> HOL cls thry HOLThm
         proveFun t = prove t $ _REPEAT tacGEN `_THEN`
                                _DISCH_THEN (_REPEAT _CONJUNCTS_THEN tacASSUME) `_THEN`
                                _REPEAT tacCONJ `_THEN` tacMONO in
@@ -458,8 +455,7 @@ generalizeSchematicVariables gflag vs thm =
                     ruleGENL vs $ foldr rulePROVE_HYP th1 others'
             else return th1
 
-deriveExistence :: (BasicConvs thry, IndDefsCtxt thry) => HOLThm 
-                -> HOL cls thry HOLThm
+deriveExistence :: IndDefsCtxt thry => HOLThm -> HOL cls thry HOLThm
 deriveExistence thm =
     let defs = filter isEq $ hyp thm in
       foldrM ruleEXISTS_EQUATION thm defs
@@ -503,7 +499,7 @@ unschematizeClauses clauses =
           hackFun tm = mkVar (fst . fromJust $ destVar =<< repeatM rator tm) $
                          typeOf tm
 
-proveInductiveProperties :: (BasicConvs thry, IndDefsCtxt thry, 
+proveInductiveProperties :: (IndDefsCtxt thry, 
                              HOLTermRep tm cls thry) 
                          => tm -> HOL cls thry ([HOLTerm], HOLThm)
 proveInductiveProperties ptm = 
@@ -513,7 +509,7 @@ proveInductiveProperties ptm =
        mth <- proveMonotonicityHyps th
        return (fvs, mth)
 
-proveInductiveRelationsExist :: (BasicConvs thry, IndDefsCtxt thry, 
+proveInductiveRelationsExist :: (IndDefsCtxt thry, 
                                  HOLTermRep tm cls thry) 
                              => tm -> HOL cls thry HOLThm
 proveInductiveRelationsExist tm =
@@ -526,7 +522,7 @@ proveInductiveRelationsExist tm =
 -- Inductive Theorem -> says the relations are the least closed
 -- Cases Theorem -> showing how each set of satisfying values can be composed
 
-newInductiveDefinition :: (BasicConvs thry, IndDefsCtxt thry, 
+newInductiveDefinition :: (IndDefsCtxt thry, 
                            HOLTermRep tm Theory thry) => Text -> tm 
                        -> HOL Theory thry (HOLThm, HOLThm, HOLThm)
 newInductiveDefinition lbl ptm =

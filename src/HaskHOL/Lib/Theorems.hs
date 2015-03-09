@@ -234,14 +234,13 @@ thmEXISTS_REFL = cacheProof "thmEXISTS_REFL" ctxtTheorems $
          tacEXISTS a `_THEN`
          tacREFL
 
-thmEXISTS_UNIQUE :: (BasicConvs thry, TheoremsCtxt thry) => HOL cls thry HOLThm
+thmEXISTS_UNIQUE :: TheoremsCtxt thry => HOL cls thry HOLThm
 thmEXISTS_UNIQUE = cacheProof "thmEXISTS_UNIQUE" ctxtTheorems $
     prove [str| !P. (?!x:A. P x) <=> 
                     (?x. P x) /\ (!x x'. P x /\ P x' ==> (x = x')) |] $
       tacGEN `_THEN` tacREWRITE [defEXISTS_UNIQUE]
 
-thmEXISTS_UNIQUE_REFL :: (BasicConvs thry, TheoremsCtxt thry) 
-                      => HOL cls thry HOLThm
+thmEXISTS_UNIQUE_REFL :: TheoremsCtxt thry => HOL cls thry HOLThm
 thmEXISTS_UNIQUE_REFL = cacheProof "thmEXISTS_UNIQUE_REFL" ctxtTheorems $
     prove "!a:A. ?!x. x = a" $
       tacGEN `_THEN` tacREWRITE [thmEXISTS_UNIQUE] `_THEN`
@@ -249,8 +248,7 @@ thmEXISTS_UNIQUE_REFL = cacheProof "thmEXISTS_UNIQUE_REFL" ctxtTheorems $
       [ tacEXISTS "a:A", tacASM_REWRITE_NIL ] `_THEN`
       tacREFL
 
-thmEXISTS_UNIQUE_ALT :: (BasicConvs thry, TheoremsCtxt thry) 
-                     => HOL cls thry HOLThm
+thmEXISTS_UNIQUE_ALT :: TheoremsCtxt thry => HOL cls thry HOLThm
 thmEXISTS_UNIQUE_ALT = cacheProof "thmEXISTS_UNIQUE_ALT" ctxtTheorems $
   do pth <- ruleGSYM thmEXISTS_REFL
      prove "!P:A->bool. (?!x. P x) <=> (?x. !y. P y <=> (x = y))" $
@@ -304,14 +302,14 @@ thmMONO_NOT :: TheoremsCtxt thry => HOL cls thry HOLThm
 thmMONO_NOT = cacheProof "thmMONO_NOT" ctxtTheorems $
     ruleITAUT "(B ==> A) ==> (~A ==> ~B)"
 
-thmMONO_FORALL :: (BasicConvs thry, TheoremsCtxt thry) => HOL cls thry HOLThm
+thmMONO_FORALL :: TheoremsCtxt thry => HOL cls thry HOLThm
 thmMONO_FORALL = cacheProof "thmMONO_FORALL" ctxtTheorems $
     prove "(!x:A. P x ==> Q x) ==> ((!x. P x) ==> (!x. Q x))" $
       _REPEAT tacSTRIP `_THEN` 
       _FIRST_ASSUM tacMATCH_MP `_THEN`
       tacASM_REWRITE_NIL
 
-thmMONO_EXISTS :: (BasicConvs thry, TheoremsCtxt thry) => HOL cls thry HOLThm
+thmMONO_EXISTS :: TheoremsCtxt thry => HOL cls thry HOLThm
 thmMONO_EXISTS = cacheProof "thmMONO_EXISTS" ctxtTheorems $
     prove "(!x:A. P x ==> Q x) ==> ((?x. P x) ==> (?x. Q x))" $
       tacDISCH `_THEN` 

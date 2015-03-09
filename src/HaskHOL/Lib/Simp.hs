@@ -1,5 +1,5 @@
-{-# LANGUAGE FlexibleInstances, PatternSynonyms, ScopedTypeVariables, 
-             TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, PatternSynonyms, 
+             ScopedTypeVariables, TypeSynonymInstances #-}
 {-|
   Module:    HaskHOL.Lib.Simp
   Copyright: (c) The University of Kansas 2013
@@ -38,7 +38,9 @@ module HaskHOL.Lib.Simp
        , setBasicRewrites
        , extendBasicRewrites
        , basicRewrites
-       , BasicConvs(..)
+       , setBasicConvs
+       , extendBasicConvs
+       , basicConvs
        , basicNet
        , setBasicCongs
        , extendBasicCongs
@@ -107,21 +109,26 @@ import HaskHOL.Lib.Tactics
 import System.IO.Unsafe (unsafePerformIO)
 import Data.IORef
 
-class BasicConvs thry where
-    basicConvs :: thry -> [(Text, (Text, Conversion cls thry'))]
+data BasicConvs = 
+    BasicConvs ![(Text, (HOLTerm, (String, [String])))] deriving Typeable
 
-instance BasicConvs BaseThry where
-    basicConvs _ = []
+deriveSafeCopy 0 'base ''BasicConvs
 
--- this approach leads to some nasty context stack sizes
-{-
-instance (BasicConvs a, BasicConvs b) => BasicConvs (ExtThry a b) where
-    basicConvs _ = 
-        basicConvs (undefined :: a) ++ basicConvs (undefined :: b)
--}
+getConvs :: Query BasicConvs [(Text, (HOLTerm, (String, [String])))]
+getConvs =
+    do (BasicConvs convs) <- ask
+       return convs
 
-instance BasicConvs BoolType where
-    basicConvs _ = []
+putConvs :: [(Text, (HOLTerm, (String, [String])))] -> Update BasicConvs ()
+putConvs convs = put (BasicConvs convs)
+
+addConv :: (Text, (HOLTerm, (String, [String]))) -> Update BasicConvs ()
+addConv (name, patcong) =
+    do (BasicConvs convs) <- get
+       put (BasicConvs $ (name, patcong) : 
+                         filter (\ (name', _) -> name /= name') convs)
+
+makeAcidic ''BasicConvs ['getConvs, 'putConvs, 'addConv]
 
 {-# NOINLINE conversionNet #-}
 conversionNet :: HOLRef (Maybe (Net (GConversion cls thry)))
@@ -529,8 +536,7 @@ getRewrites =
 makeAcidic ''Rewrites ['putRewrites, 'addRewrites, 'getRewrites]
 
 
-setBasicRewrites :: (BasicConvs thry, BoolCtxt thry)
-                 => [HOLThm] -> HOL Theory thry ()
+setBasicRewrites :: BoolCtxt thry => [HOLThm] -> HOL Theory thry ()
 setBasicRewrites thl =
     do canonThl <- foldrM (mkRewrites False) [] thl
        acid <- openLocalStateHOL (Rewrites [])
@@ -538,8 +544,7 @@ setBasicRewrites thl =
        createCheckpointAndCloseHOL acid
        rehashConvnet
 
-extendBasicRewrites :: (BasicConvs thry, BoolCtxt thry) => [HOLThm] 
-                    -> HOL Theory thry ()
+extendBasicRewrites :: BoolCtxt thry => [HOLThm] -> HOL Theory thry ()
 extendBasicRewrites thl = 
     do canonThl <- foldrM (mkRewrites False) [] thl
        acid <- openLocalStateHOL (Rewrites [])
@@ -554,8 +559,38 @@ basicRewrites =
        closeAcidStateHOL acid
        return ths
 
-basicNet :: (BasicConvs thry, BoolCtxt thry) 
-         => HOL cls thry (Net (GConversion cls thry))
+setBasicConvs :: BoolCtxt thry => [(Text, (HOLTerm, (String, [String])))] 
+              -> HOL Theory thry ()
+setBasicConvs cnvs =
+    do acid <- openLocalStateHOL (BasicConvs [])
+       updateHOL acid (PutConvs cnvs)
+       createCheckpointAndCloseHOL acid
+       rehashConvnet
+
+extendBasicConvs :: (BoolCtxt thry, HOLTermRep tm Theory thry) 
+                 => (Text, (tm, (String, [String]))) -> HOL Theory thry ()
+extendBasicConvs (name, (ptm, conv)) = 
+    do tm <- toHTm ptm
+       acid <- openLocalStateHOL (BasicConvs [])
+       updateHOL acid (AddConv (name, (tm, conv)))
+       createCheckpointAndCloseHOL acid
+       rehashConvnet
+
+-- Interpreted code must be of type HOL Proof thry, so we need to
+-- build the entire `runConv conv tm` rather than just recalling conv by name
+basicConvs :: CtxtName thry 
+           => HOL cls thry [(Text, (HOLTerm, Conversion cls thry))]
+basicConvs =
+    do acid <- openLocalStateHOL (BasicConvs [])
+       convs <- queryHOL acid GetConvs
+       closeAcidStateHOL acid
+       return $! map (\ (x, (y, (m, mods))) -> (x, (y, Conv $ \ tm -> 
+                        do tm' <- showHOL tm
+                           let tm'' = "[str| " ++ tm' ++ " |]"
+                               expr = "runConv " ++ m ++ " =<< toHTm " ++ tm''
+                           runHOLHint expr ("HaskHOL.Lib.Equal":mods)))) convs
+
+basicNet :: BoolCtxt thry => HOL cls thry (Net (GConversion cls thry))
 basicNet =
     do net <- readHOLRef conversionNet
        case net of
@@ -563,15 +598,11 @@ basicNet =
          Nothing -> do rehashConvnet
                        basicNet
 
-rehashConvnet :: forall cls thry. (BasicConvs thry, BoolCtxt thry) 
-              => HOL cls thry ()
+rehashConvnet :: BoolCtxt thry => HOL cls thry ()
 rehashConvnet =
   do rewrites <- basicRewrites
-     let cnvs :: [(Text, (Text, Conversion cls thry))]
-         cnvs = basicConvs (undefined :: thry)
-     cnvs' <- mapM (\ (_, (y, z)) -> do tm <- toHTm y
-                                        return (tm, z)) cnvs
-     let convs = foldr (uncurry netOfConv) netEmpty cnvs'
+     cnvs <- liftM (map snd) basicConvs
+     let convs = foldr (uncurry netOfConv) netEmpty cnvs
      net <- liftO $ foldrM (netOfThm True) convs rewrites
      writeHOLRef conversionNet (Just net)
 
@@ -644,13 +675,13 @@ convPURE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
                  -> Conversion cls thry
 convPURE_REWRITE = convGENERAL_REWRITE True convTOP_DEPTH netEmpty
 
-convREWRITE :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
+convREWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
             -> Conversion cls thry
 convREWRITE thl = Conv $ \ tm ->
     do net <- basicNet
        runConv (convGENERAL_REWRITE True convTOP_DEPTH net thl) tm
 
-convREWRITE_NIL :: (BasicConvs thry, BoolCtxt thry) => Conversion cls thry
+convREWRITE_NIL :: BoolCtxt thry => Conversion cls thry
 convREWRITE_NIL = Conv $ \ tm ->
     do net <- basicNet
        runConv (convGENERAL_REWRITE' True convTOP_DEPTH net []) tm
@@ -660,7 +691,7 @@ convPURE_ONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
 convPURE_ONCE_REWRITE = 
     convGENERAL_REWRITE False convONCE_DEPTH netEmpty
 
-convONCE_REWRITE :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) 
+convONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) 
                  => [thm] -> Conversion cls thry
 convONCE_REWRITE thl = Conv $ \ tm ->
     do net <- basicNet
@@ -677,12 +708,12 @@ rulePURE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry,
                  -> HOL cls thry HOLThm
 rulePURE_REWRITE thl = ruleCONV (convPURE_REWRITE thl)
 
-ruleREWRITE :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm1 cls thry,
+ruleREWRITE :: (BoolCtxt thry, HOLThmRep thm1 cls thry,
                 HOLThmRep thm2 cls thry) => [thm1] -> thm2 
             -> HOL cls thry HOLThm
 ruleREWRITE thl = ruleCONV (convREWRITE thl)
 
-ruleREWRITE_NIL :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) 
+ruleREWRITE_NIL :: (BoolCtxt thry, HOLThmRep thm cls thry) 
                 => thm -> HOL cls thry HOLThm
 ruleREWRITE_NIL = ruleCONV convREWRITE_NIL
 
@@ -690,7 +721,7 @@ rulePURE_ONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
                       -> HOLThm -> HOL cls thry HOLThm
 rulePURE_ONCE_REWRITE thl = ruleCONV (convPURE_ONCE_REWRITE thl)
 
-ruleONCE_REWRITE :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm1 cls thry,
+ruleONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm1 cls thry,
                      HOLThmRep thm2 cls thry) => [thm1] -> thm2
                  -> HOL cls thry HOLThm
 ruleONCE_REWRITE thl = ruleCONV (convONCE_REWRITE thl)
@@ -703,7 +734,7 @@ rulePURE_ASM_REWRITE pthl pth =
        thl <- mapM toHThm pthl
        rulePURE_REWRITE (map (fromRight . primASSUME) (hyp th) ++ thl) th
 
-ruleASM_REWRITE :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm1 cls thry,
+ruleASM_REWRITE :: (BoolCtxt thry, HOLThmRep thm1 cls thry,
                     HOLThmRep thm2 cls thry) => [thm1] -> thm2
                 -> HOL cls thry HOLThm
 ruleASM_REWRITE pthl pth =
@@ -719,9 +750,9 @@ rulePURE_ONCE_ASM_REWRITE pthl pth =
        thl <- mapM toHThm pthl
        rulePURE_ONCE_REWRITE (map (fromRight . primASSUME) (hyp th) ++ thl) th
 
-ruleONCE_ASM_REWRITE :: (BasicConvs thry, BoolCtxt thry, 
-                         HOLThmRep thm1 cls thry,
-                         HOLThmRep thm2 cls thry) => [thm1] -> thm2
+ruleONCE_ASM_REWRITE :: (BoolCtxt thry
+                        ,HOLThmRep thm1 cls thry
+                        ,HOLThmRep thm2 cls thry) => [thm1] -> thm2
                      -> HOL cls thry HOLThm 
 ruleONCE_ASM_REWRITE pthl pth =
     do th <- toHThm pth
@@ -737,13 +768,13 @@ tacPURE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
                 -> Tactic cls thry
 tacPURE_REWRITE thl = tacCONV (convPURE_REWRITE thl)
 
-tacREWRITE' :: (BasicConvs thry, BoolCtxt thry) => [HOLThm] -> Tactic cls thry
+tacREWRITE' :: BoolCtxt thry => [HOLThm] -> Tactic cls thry
 tacREWRITE' thl = tacCONV (convREWRITE thl)
 
-tacREWRITE_NIL :: (BasicConvs thry, BoolCtxt thry) => Tactic cls thry
+tacREWRITE_NIL :: BoolCtxt thry => Tactic cls thry
 tacREWRITE_NIL = tacREWRITE' []
 
-tacREWRITE :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) => 
+tacREWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => 
               [thm] -> Tactic cls thry
 tacREWRITE pthl = liftM1 tacREWRITE' (mapM toHThm pthl)
 
@@ -751,11 +782,10 @@ tacPURE_ONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
                      -> Tactic cls thry
 tacPURE_ONCE_REWRITE thl = tacCONV (convPURE_ONCE_REWRITE thl)
 
-tacONCE_REWRITE' :: (BasicConvs thry, BoolCtxt thry) => [HOLThm] 
-                 -> Tactic cls thry
+tacONCE_REWRITE' :: BoolCtxt thry => [HOLThm] -> Tactic cls thry
 tacONCE_REWRITE' thl = tacCONV (convONCE_REWRITE thl)
 
-tacONCE_REWRITE :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) => 
+tacONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => 
                    [thm] -> Tactic cls thry
 tacONCE_REWRITE pthl = liftM1 tacONCE_REWRITE' (mapM toHThm pthl)
 
@@ -766,21 +796,20 @@ tacPURE_ASM_REWRITE = tacASM tacPURE_REWRITE
 tacPURE_ASM_REWRITE_NIL :: BoolCtxt thry => Tactic cls thry 
 tacPURE_ASM_REWRITE_NIL = tacASM tacPURE_REWRITE ([]::[HOLThm])
 
-tacASM_REWRITE' :: (BasicConvs thry, BoolCtxt thry) => [HOLThm] 
-                -> Tactic cls thry
+tacASM_REWRITE' :: BoolCtxt thry => [HOLThm] -> Tactic cls thry
 tacASM_REWRITE' = tacASM tacREWRITE
 
-tacASM_REWRITE_NIL :: (BasicConvs thry, BoolCtxt thry) => Tactic cls thry
+tacASM_REWRITE_NIL :: BoolCtxt thry => Tactic cls thry
 tacASM_REWRITE_NIL = tacASM_REWRITE' []
 
-tacASM_REWRITE :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) 
+tacASM_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) 
                => [thm] -> Tactic cls thry
 tacASM_REWRITE pthl = liftM1 tacASM_REWRITE' (mapM toHThm pthl)
 
 tacPURE_ONCE_ASM_REWRITE :: BoolCtxt thry => [HOLThm] -> Tactic cls thry
 tacPURE_ONCE_ASM_REWRITE = tacASM tacPURE_ONCE_REWRITE
 
-tacONCE_ASM_REWRITE :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) 
+tacONCE_ASM_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) 
                     => [thm] -> Tactic cls thry 
 tacONCE_ASM_REWRITE = tacASM tacONCE_REWRITE
 
@@ -805,8 +834,7 @@ convSIMPLIFY ss = convGEN_SIMPLIFY sqconvTOP_DEPTH ss 3
 emptySS :: BoolCtxt thry => Simpset cls thry
 emptySS = Simpset netEmpty basicProver [] $ mkRewrites True
 
-basicSS :: (BasicConvs thry, BoolCtxt thry) => [HOLThm] 
-        -> HOL cls thry (Simpset cls thry)
+basicSS :: BoolCtxt thry => [HOLThm] -> HOL cls thry (Simpset cls thry)
 basicSS thl = 
     let rewmaker = mkRewrites True in
       do cthms <- foldrM rewmaker [] thl
@@ -816,7 +844,7 @@ basicSS thl =
          net'' <- liftO $ foldrM netOfCong net' congs
          return $ Simpset net'' basicProver [] rewmaker
 
-convSIMP :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) => [thm] 
+convSIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm] 
          -> Conversion cls thry
 convSIMP thl = Conv $ \ tm -> 
     do ss <- basicSS []
@@ -826,13 +854,13 @@ convPURE_SIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
               -> Conversion cls thry
 convPURE_SIMP = convSIMPLIFY emptySS
 
-convONCE_SIMP :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) 
+convONCE_SIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) 
               => [thm] -> Conversion cls thry
 convONCE_SIMP thl = Conv $ \ tm ->
     do ss <- basicSS []
        runConv (convONCE_SIMPLIFY ss thl) tm
 
-ruleSIMP :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) => [thm] 
+ruleSIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm] 
          -> HOLThm -> HOL cls thry HOLThm
 ruleSIMP thl = ruleCONV (convSIMP thl)
 
@@ -840,11 +868,11 @@ rulePURE_SIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
               -> HOLThm -> HOL cls thry HOLThm
 rulePURE_SIMP thl = ruleCONV (convPURE_SIMP thl)
 
-ruleONCE_SIMP :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) 
+ruleONCE_SIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) 
               => [thm] -> HOLThm -> HOL cls thry HOLThm
 ruleONCE_SIMP thl = ruleCONV (convONCE_SIMP thl)
 
-tacSIMP :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) => [thm] 
+tacSIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm] 
         -> Tactic cls thry
 tacSIMP thl = tacCONV (convSIMP thl)
 
@@ -852,11 +880,11 @@ tacPURE_SIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
              -> Tactic cls thry
 tacPURE_SIMP thl = tacCONV (convPURE_SIMP thl)
 
-tacONCE_SIMP :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) 
+tacONCE_SIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) 
              => [thm] -> Tactic cls thry
 tacONCE_SIMP thl = tacCONV (convONCE_SIMP thl)
 
-tacASM_SIMP :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
+tacASM_SIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
             -> Tactic cls thry
 tacASM_SIMP = tacASM tacSIMP
 
@@ -864,7 +892,7 @@ tacPURE_ASM_SIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
                  -> Tactic cls thry
 tacPURE_ASM_SIMP = tacASM tacPURE_SIMP
 
-tacONCE_ASM_SIMP :: (BasicConvs thry, BoolCtxt thry, HOLThmRep thm cls thry) 
+tacONCE_ASM_SIMP :: (BoolCtxt thry, HOLThmRep thm cls thry) 
                  => [thm] -> Tactic cls thry
 tacONCE_ASM_SIMP = tacASM tacONCE_SIMP
 

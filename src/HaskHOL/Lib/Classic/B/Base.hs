@@ -24,7 +24,7 @@ defCOND :: ClassicACtxt thry => HOL cls thry HOLThm
 defCOND = cacheProof "defCOND" ctxtClassicA $ getDefinition "COND"
 
 -- bootstrapping selection
-thmEQ_EXT :: (BasicConvs thry, ClassicACtxt thry) => HOL cls thry HOLThm
+thmEQ_EXT :: ClassicACtxt thry => HOL cls thry HOLThm
 thmEQ_EXT = cacheProof "thmEQ_EXT" ctxtClassicA $
     do x <- toHTm "x:A" 
        prove "!(f:A->B) g. (!x. f x = g x) ==> f = g" $
@@ -34,7 +34,7 @@ thmEQ_EXT = cacheProof "thmEQ_EXT" ctxtClassicA $
                                    tacMP th'' g) `_THEN`
          tacREWRITE [axETA]
 
-thmEXISTS :: (BasicConvs thry, ClassicACtxt thry) => HOL cls thry HOLThm
+thmEXISTS :: ClassicACtxt thry => HOL cls thry HOLThm
 thmEXISTS = cacheProof "thmEXISTS" ctxtClassicA $
     prove [str| (?) = \P:A->bool. P ((@) P) |] $
       tacMATCH_MP thmEQ_EXT `_THEN`
@@ -49,7 +49,7 @@ thmEXISTS = cacheProof "thmEXISTS" ctxtClassicA $
       ]
 
 -- basic selection conversions
-convSELECT :: (BasicConvs thry, ClassicACtxt thry) => Conversion cls thry
+convSELECT :: ClassicACtxt thry => Conversion cls thry
 convSELECT = Conv $ \ tm ->
     do p <- toHTm "P:A->bool"
        pth <- convSELECT_pth
@@ -67,15 +67,14 @@ convSELECT = Conv $ \ tm ->
                       _ -> False
               | otherwise = False
   
-          convSELECT_pth :: (BasicConvs thry, ClassicACtxt thry) 
-                         => HOL cls thry HOLThm
+          convSELECT_pth :: ClassicACtxt thry => HOL cls thry HOLThm
           convSELECT_pth = cacheProof "convSELECT_pth" ctxtClassicA $
               prove "(P:A->bool)((@)P) = (?) P" $
                 tacREWRITE [thmEXISTS] `_THEN`
                 tacBETA `_THEN`
                 tacREFL
 
-thmSELECT_REFL :: (BasicConvs thry, ClassicACtxt thry) => HOL cls thry HOLThm
+thmSELECT_REFL :: ClassicACtxt thry => HOL cls thry HOLThm
 thmSELECT_REFL = cacheProof "thmSELECT_REFL" ctxtClassicA $
     prove "!x:A. (@y. y = x) = x" $
       tacGEN `_THEN` 

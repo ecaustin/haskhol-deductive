@@ -8,7 +8,6 @@ module HaskHOL.Lib.Classic.A.Context
     ) where
 
 import HaskHOL.Core
-import HaskHOL.Lib.Simp
 
 import HaskHOL.Lib.IndDefs.Context
 import HaskHOL.Lib.Classic.A.Base
@@ -29,6 +28,3 @@ type family ClassicACtxt a where
     ClassicACtxt a = (IndDefsCtxt a, ClassicAContext a ~ 'True)
 
 type instance PolyTheory ClassicAType b = ClassicACtxt b
-
-instance BasicConvs ClassicAType where
-    basicConvs _ = []

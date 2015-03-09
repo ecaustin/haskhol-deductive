@@ -471,35 +471,31 @@ optimizeRules = map (second optimizeClauseOrder)
 convDISJ_AC :: TheoremsCtxt thry => Conversion cls thry
 convDISJ_AC = convAC thmDISJ_ACI
 
-convImp :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convImp :: TriviaCtxt thry => Conversion cls thry
 convImp = convREWR convImp_pth
-  where convImp_pth :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+  where convImp_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         convImp_pth = cacheProof "convImp_pth" ctxtTrivia $
             ruleTAUT [str| a \/ b <=> ~b ==> a |]
 
-convPush :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convPush :: TriviaCtxt thry => Conversion cls thry
 convPush = convGEN_REWRITE convTOP_SWEEP [convPush_pth1, convPush_pth2]
-  where convPush_pth1 :: (BasicConvs thry, TriviaCtxt thry) 
-                      => HOL cls thry HOLThm
+  where convPush_pth1 :: TriviaCtxt thry => HOL cls thry HOLThm
         convPush_pth1 = cacheProof "convPush_pth1" ctxtTrivia $
             ruleTAUT [str| ~(a \/ b) <=> ~a /\ ~b |]
 
-        convPush_pth2 :: (BasicConvs thry, TriviaCtxt thry) 
-                      => HOL cls thry HOLThm
+        convPush_pth2 :: TriviaCtxt thry => HOL cls thry HOLThm
         convPush_pth2 = cacheProof "convPush_pth2" ctxtTrivia $
             ruleTAUT "~(~a) <=> a"
 
-convPull :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convPull :: TriviaCtxt thry => Conversion cls thry
 convPull = convGEN_REWRITE convDEPTH [convPull_pth]
-  where convPull_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                     => HOL cls thry HOLThm
+  where convPull_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         convPull_pth = cacheProof "convPull_pth" ctxtTrivia $
             ruleTAUT [str| ~a \/ ~b <=> ~(a /\ b) |]
 
-convImf :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convImf :: TriviaCtxt thry => Conversion cls thry
 convImf = convREWR convImf_pth
-  where convImf_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                    => HOL cls thry HOLThm
+  where convImf_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         convImf_pth = cacheProof "convImf_pth" ctxtTrivia $
             ruleTAUT "~p <=> p ==> F"
 
@@ -513,38 +509,32 @@ mergeInst (t, x) current =
     let t' = folSubst current t in
       (t', x) : current
 
-finishRule :: (BasicConvs thry, TriviaCtxt thry) => HOLThm 
-           -> HOL cls thry HOLThm
+finishRule :: TriviaCtxt thry => HOLThm -> HOL cls thry HOLThm
 finishRule thm = ruleGEN_REWRITE id [finishRule_pth1, finishRule_pth2]  thm
-  where finishRule_pth1 :: (BasicConvs thry, TriviaCtxt thry) 
-                        => HOL cls thry HOLThm
+  where finishRule_pth1 :: TriviaCtxt thry => HOL cls thry HOLThm
         finishRule_pth1 = cacheProof "finishRule_pth1" ctxtTrivia $
             ruleTAUT "(~p ==> p) <=> p"
 
-        finishRule_pth2 :: (BasicConvs thry, TriviaCtxt thry) 
-                        => HOL cls thry HOLThm
+        finishRule_pth2 :: TriviaCtxt thry => HOL cls thry HOLThm
         finishRule_pth2 = cacheProof "finishRule_pth2" ctxtTrivia $
             ruleTAUT "(p ==> ~p) <=> ~p"
                                 
 -- create equality axioms
 
-convImpElim :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convImpElim :: TriviaCtxt thry => Conversion cls thry
 convImpElim = convREWR convImpElim_pth
-  where convImpElim_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                        => HOL cls thry HOLThm
+  where convImpElim_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         convImpElim_pth = cacheProof "convImpElim_pth" ctxtTrivia $
             ruleTAUT [str| (a ==> b) <=> ~a \/ b |]
 
-ruleEqElim :: (BasicConvs thry, TriviaCtxt thry) => HOLThm 
-           -> HOL cls thry HOLThm
+ruleEqElim :: TriviaCtxt thry => HOLThm -> HOL cls thry HOLThm
 ruleEqElim thm = ruleMATCH_MP ruleEqElim_pth thm
-  where ruleEqElim_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                       => HOL cls thry HOLThm
+  where ruleEqElim_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         ruleEqElim_pth = cacheProof "ruleEqElim_pth" ctxtTrivia $
             ruleTAUT [str| (a <=> b) ==> b \/ ~a |]
 
 
-createEquivalenceAxioms :: (BasicConvs thry, TriviaCtxt thry) => (HOLTerm, Int) 
+createEquivalenceAxioms :: TriviaCtxt thry => (HOLTerm, Int) 
                         -> HOL cls thry [HOLThm]
 createEquivalenceAxioms (eq, _) =
     (do ths@(th:_) <- sequence eqThms
@@ -552,7 +542,7 @@ createEquivalenceAxioms (eq, _) =
                        tyins <- typeMatch (typeOf veqTm) (typeOf eq) ([], [], [])
                        return $! map (primINST_TYPE_FULL tyins) ths)
     <?> "createEquivalenceAxioms"
-  where eqThms :: (BasicConvs thry, TriviaCtxt thry) => [HOL cls thry HOLThm]
+  where eqThms :: TriviaCtxt thry => [HOL cls thry HOLThm]
         eqThms = cacheProofs ["eqThms1", "eqThms2"] ctxtTrivia $
             ruleCONJUNCTS =<< 
               prove [str| (x:A = x) /\ (~(x:A = y) \/ ~(x = z) \/ (y = z)) |]
@@ -599,8 +589,8 @@ fmConsts tm acc@(preds, funs) =
                                  else (insert (p, length args) preds,
                                        foldr tmConsts funs args)
 
-createCongruenceAxiom :: (BasicConvs thry, TriviaCtxt thry) => Bool 
-                      -> (HOLTerm, Int) -> HOL cls thry HOLThm
+createCongruenceAxiom :: TriviaCtxt thry => Bool -> (HOLTerm, Int) 
+                      -> HOL cls thry HOLThm
 createCongruenceAxiom pflag (tm, len) =
     let (atys, _) = splitList destFunTy $ typeOf tm in
       (do (ctys, _) <- fromJustM $ chopList len atys
@@ -614,8 +604,7 @@ createCongruenceAxiom pflag (tm, len) =
           foldrM (\ e th -> ruleCONV convImpElim =<< ruleDISCH e th) th3 (hyp th3))
       <?> "createCongruenceAxiom"
 
-createEqualityAxioms :: (BasicConvs thry, TriviaCtxt thry) => [HOLTerm] 
-                     -> HOL cls thry [HOLThm]
+createEqualityAxioms :: TriviaCtxt thry => [HOLTerm] -> HOL cls thry [HOLThm]
 createEqualityAxioms tms =
     do (preds, funs) <- liftMaybe "createEqualityAxioms" $ foldrM fmConsts ([], []) tms
        let (eqs0, noneqs) = partition eqPred preds
@@ -649,17 +638,14 @@ subtermsRefl lconsts tm acc =
     let (_, args) = stripComb tm in
       foldr (subtermsRefl lconsts) (insert tm acc) args
 
-ruleCLAUSIFY :: (BasicConvs thry, TriviaCtxt thry) => HOLThm 
-             -> HOL cls thry HOLThm
+ruleCLAUSIFY :: TriviaCtxt thry => HOLThm -> HOL cls thry HOLThm
 ruleCLAUSIFY = ruleCONV (convREWR ruleCLAUSIFY_pth)
-  where ruleCLAUSIFY_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                         => HOL cls thry HOLThm
+  where ruleCLAUSIFY_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         ruleCLAUSIFY_pth = cacheProof "ruleCLAUSIFY_pth" ctxtTrivia $
             ruleTAUT [str| a ==> b <=> ~a \/ b |]
 
 
-ruleBRAND :: (BasicConvs thry, TriviaCtxt thry) => [HOLTerm] -> HOLThm 
-          -> HOL cls thry HOLThm
+ruleBRAND :: TriviaCtxt thry => [HOLTerm] -> HOLThm -> HOL cls thry HOLThm
 ruleBRAND [] th = return th
 ruleBRAND (tm:tms) th =
     do gv <- genVar $ typeOf tm
@@ -669,8 +655,7 @@ ruleBRAND (tm:tms) th =
        tms' <- liftO $ mapM (subst [(tm, gv)]) tms
        ruleBRAND tms' th'
 
-ruleBRAND_CONGS :: (BasicConvs thry, TriviaCtxt thry) => HOLThm 
-                -> HOL cls thry HOLThm
+ruleBRAND_CONGS :: TriviaCtxt thry => HOLThm -> HOL cls thry HOLThm
 ruleBRAND_CONGS th =
     let lconsts = catFrees $ hyp th
         lits = disjuncts $ concl th
@@ -686,8 +671,7 @@ ruleBRAND_CONGS th =
                         (Const "=" _, _) -> True
                         _ -> False
 
-ruleBRANDE :: (BasicConvs thry, TriviaCtxt thry) => HOLThm 
-           -> HOL cls thry HOLThm
+ruleBRANDE :: TriviaCtxt thry => HOLThm -> HOL cls thry HOLThm
 ruleBRANDE th =
     let tm = concl th in
       (do (l, r) <- fromJustM $ destEq tm
@@ -712,8 +696,7 @@ ruleASSOCIATE = ruleCONV (convREWR ruleASSOCIATE_pth)
           ruleGSYM thmDISJ_ASSOC
 
 
-ruleBRAND_TRANS :: (BasicConvs thry, TriviaCtxt thry) => HOLThm 
-                -> HOL cls thry [HOLThm]
+ruleBRAND_TRANS :: TriviaCtxt thry => HOLThm -> HOL cls thry [HOLThm]
 ruleBRAND_TRANS th =
     let tm = concl th in
       (case destDisj tm of
@@ -749,8 +732,7 @@ ruleREFLEXATE ths =
     where tyFun (Const _ (TyApp _ (ty:_))) = Just ty
           tyFun _ = Nothing
         
-performBrandModification :: (BasicConvs thry, TriviaCtxt thry) => [HOLThm] 
-                         -> HOL cls thry [HOLThm]
+performBrandModification :: TriviaCtxt thry => [HOLThm] -> HOL cls thry [HOLThm]
 performBrandModification ths =
     if any (isJust . findTerm isEq . concl) ths
     then do ths' <- mapM ruleBRAND_CONGS ths
@@ -809,8 +791,8 @@ tacCONJUNCTS_THEN' ttac cth gl =
        cthr <- ruleCONJUNCT2 cth
        (ttac cthl `_THEN` ttac cthr) gl
 
-tacPURE_MESON :: (BasicConvs thry, TriviaCtxt thry) => MesonState -> Int -> Int 
-              -> Int -> Tactic cls thry
+tacPURE_MESON :: TriviaCtxt thry => MesonState -> Int -> Int -> Int 
+              -> Tactic cls thry
 tacPURE_MESON ref minVal maxVal inc goal =
     do resetVars
        resetConsts
@@ -820,8 +802,7 @@ tacPURE_MESON ref minVal maxVal inc goal =
                                 tacACCEPT th g)) goal
 
     where 
-      simpleMesonRefute :: (BasicConvs thry, TriviaCtxt thry) => [HOLThm] 
-                        -> HOL cls thry HOLThm
+      simpleMesonRefute :: TriviaCtxt thry => [HOLThm] -> HOL cls thry HOLThm
       simpleMesonRefute ths =
           do dcutin <- liftM cutIn $ readHOLRef ref
              clearContraposCache
@@ -1000,7 +981,7 @@ tacPURE_MESON ref minVal maxVal inc goal =
       clearContraposCache =
           modifyHOLRef ref $ \ st -> st { memory = [] }
 
-      makeHOLContrapos :: (BasicConvs thry, TriviaCtxt thry) => Int -> HOLThm 
+      makeHOLContrapos :: TriviaCtxt thry => Int -> HOLThm 
                        -> HOL cls thry HOLThm
       makeHOLContrapos n th =
           let tm = concl th
@@ -1039,7 +1020,7 @@ tacPURE_MESON ref minVal maxVal inc goal =
                 else do modifyHOLRef ref $ \ st -> st { vcounter = m }
                         return n
 
-      mesonToHOL :: (BasicConvs thry, TriviaCtxt thry) => [(FOLTerm, Int)] 
+      mesonToHOL :: TriviaCtxt thry => [(FOLTerm, Int)] 
                  -> FOLGoal -> HOL cls thry HOLThm
       mesonToHOL insts (Subgoal g gs (n, th) _ locin) =
           let newInsts = foldr mergeInst insts locin
@@ -1162,7 +1143,7 @@ tacPURE_MESON ref minVal maxVal inc goal =
                              modifyHOLRef ref $ \ st -> st { vstore = (v, n) : currentvars }
                              return n
 
-convQUANT_BOOL :: (BasicConvs thry, ClassicCtxt thry) => Conversion cls thry
+convQUANT_BOOL :: ClassicCtxt thry => Conversion cls thry
 convQUANT_BOOL = 
     convPURE_REWRITE [ thmFORALL_BOOL, thmEXISTS_BOOL, thmCOND_CLAUSES
                      , thmNOT_CLAUSES, thmIMP_CLAUSES, thmAND_CLAUSES
@@ -1176,13 +1157,13 @@ tacSPLIT n =
      else _NO) `_ORELSE`
     _ALL
 
-tacGEN_MESON :: (BasicConvs thry, TriviaCtxt thry, HOLThmRep thm cls thry) 
+tacGEN_MESON :: (TriviaCtxt thry, HOLThmRep thm cls thry) 
              => Int -> Int -> Int 
              -> [thm] -> Tactic cls thry
 tacGEN_MESON minVal maxVal step ths = 
     liftM1 (tacGEN_MESON' minVal maxVal step) $ mapM toHThm ths
 
-tacGEN_MESON' :: (BasicConvs thry, TriviaCtxt thry) => Int -> Int -> Int 
+tacGEN_MESON' :: TriviaCtxt thry => Int -> Int -> Int 
               -> [HOLThm] -> Tactic cls thry
 tacGEN_MESON' minVal maxVal step ths gl =
     do pth <- thmDISJ_ASSOC
@@ -1219,24 +1200,24 @@ tacGEN_MESON' minVal maxVal step ths gl =
 
 -- common meson tactics
 
-tacASM_MESON :: (BasicConvs thry, TriviaCtxt thry, HOLThmRep thm cls thry) 
+tacASM_MESON :: (TriviaCtxt thry, HOLThmRep thm cls thry) 
              => [thm] -> Tactic cls thry
 tacASM_MESON = tacGEN_MESON 0 50 1
 
-tacASM_MESON_NIL :: (BasicConvs thry, TriviaCtxt thry) => Tactic cls thry
+tacASM_MESON_NIL :: TriviaCtxt thry => Tactic cls thry
 tacASM_MESON_NIL = tacGEN_MESON' 0 50 1 []
 
-tacMESON :: (BasicConvs thry, TriviaCtxt thry, HOLThmRep thm cls thry) => [thm] 
+tacMESON :: (TriviaCtxt thry, HOLThmRep thm cls thry) => [thm] 
          -> Tactic cls thry
 tacMESON ths = _POP_ASSUM_LIST (const _ALL) `_THEN` tacASM_MESON ths
 
-tacMESON_NIL :: (BasicConvs thry, TriviaCtxt thry) => Tactic cls thry
+tacMESON_NIL :: TriviaCtxt thry => Tactic cls thry
 tacMESON_NIL = _POP_ASSUM_LIST (const _ALL) `_THEN` tacASM_MESON_NIL
 
-ruleMESON :: (BasicConvs thry, TriviaCtxt thry, HOLThmRep thm cls thry,
+ruleMESON :: (TriviaCtxt thry, HOLThmRep thm cls thry,
               HOLTermRep tm cls thry) => [thm] -> tm -> HOL cls thry HOLThm
 ruleMESON ths tm = prove tm $ tacMESON ths
 
-ruleMESON_NIL :: (BasicConvs thry, TriviaCtxt thry, HOLTermRep tm cls thry) 
+ruleMESON_NIL :: (TriviaCtxt thry, HOLTermRep tm cls thry) 
               => tm -> HOL cls thry HOLThm
 ruleMESON_NIL tm = prove tm tacMESON_NIL

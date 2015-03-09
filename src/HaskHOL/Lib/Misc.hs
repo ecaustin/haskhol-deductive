@@ -18,8 +18,8 @@ import HaskHOL.Lib.Simp
 tacASSUM_MATCH_ACCEPT :: BoolCtxt thry => Tactic cls thry
 tacASSUM_MATCH_ACCEPT = _FIRST_ASSUM tacMATCH_ACCEPT
 
-tacASSUM_REWRITE :: (BasicConvs thry, BoolCtxt thry) 
-                 => (HOLThm -> HOL cls thry HOLThm) -> Tactic cls thry
+tacASSUM_REWRITE :: BoolCtxt thry => (HOLThm -> HOL cls thry HOLThm) 
+                 -> Tactic cls thry
 tacASSUM_REWRITE rl =
     _FIRST_X_ASSUM (\ thm gl ->
                       do th <- ruleREWRITE_NIL =<< rl thm

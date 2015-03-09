@@ -10,7 +10,6 @@ module HaskHOL.Lib.Trivia.Context
 import HaskHOL.Core
 
 import HaskHOL.Lib.Classic
-import HaskHOL.Lib.Simp
 
 import HaskHOL.Lib.Trivia.A.Context
 import HaskHOL.Lib.Trivia.Base
@@ -30,6 +29,3 @@ type family TriviaCtxt a where
     TriviaCtxt a = (TriviaACtxt a, TriviaContext a ~ 'True)
 
 type instance PolyTheory TriviaType b = TriviaCtxt b
-
-instance BasicConvs TriviaType where
-    basicConvs _ = []

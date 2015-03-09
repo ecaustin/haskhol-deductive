@@ -27,6 +27,6 @@ import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Trivia.Base
 import HaskHOL.Lib.Trivia.Context
 
-thmI :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+thmI :: TriviaCtxt thry => HOL cls thry HOLThm
 thmI = cacheProof "thmI" ctxtTrivia $
     prove "!x:A. I x = x" $ tacREWRITE [defI]

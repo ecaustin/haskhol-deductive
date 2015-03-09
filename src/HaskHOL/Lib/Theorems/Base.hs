@@ -10,7 +10,7 @@ import HaskHOL.Lib.Simp
 
 
 -- basic rewrites
-thmEQ_CLAUSES :: (BasicConvs thry, BoolCtxt thry) => HOL cls thry HOLThm
+thmEQ_CLAUSES :: BoolCtxt thry => HOL cls thry HOLThm
 thmEQ_CLAUSES = cacheProof "thmEQ_CLAUSES" ctxtBool $
     prove [str| !t. ((T <=> t) <=> t) /\
                     ((t <=> T) <=> t) /\
@@ -45,7 +45,7 @@ thmREFL_CLAUSE = cacheProof "thmREFL_CLAUSE" ctxtBool $
          tacGEN `_THEN`
          tacACCEPT th
 
-thmIMP_EQ_CLAUSE :: (BasicConvs thry, BoolCtxt thry) => HOL cls thry HOLThm
+thmIMP_EQ_CLAUSE :: BoolCtxt thry => HOL cls thry HOLThm
 thmIMP_EQ_CLAUSE = cacheProof "thmIMP_EQ_CLAUSE" ctxtBool $
     do th1 <- ruleEQT_INTRO =<< ruleSPEC_ALL thmEQ_REFL
        th2 <- thmIMP_CLAUSES

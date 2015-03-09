@@ -9,7 +9,6 @@ module HaskHOL.Lib.IndDefs.Context
 
 import HaskHOL.Core
 import HaskHOL.Lib.Theorems
-import HaskHOL.Lib.Simp
 
 import HaskHOL.Lib.Theorems.Context
 import HaskHOL.Lib.IndDefs.Base
@@ -28,6 +27,3 @@ type family IndDefsCtxt a where
     IndDefsCtxt a = (TheoremsCtxt a, IndDefsContext a ~ 'True)
 
 type instance PolyTheory IndDefsType b = IndDefsCtxt b
-
-instance BasicConvs IndDefsType where
-    basicConvs _ = []

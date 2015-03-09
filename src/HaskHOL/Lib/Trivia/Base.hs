@@ -24,7 +24,7 @@ ty1 = cacheProof "ty1" ctxtTriviaA $ getTypeDefinition "1"
 def_one :: TriviaACtxt thry => HOL cls thry HOLThm
 def_one = cacheProof "def_one" ctxtTriviaA $ getDefinition "one"
 
-thm_one :: (BasicConvs thry, TriviaACtxt thry) => HOL cls thry HOLThm
+thm_one :: TriviaACtxt thry => HOL cls thry HOLThm
 thm_one = cacheProof "thm_one" ctxtTriviaA $
     do th <- ruleCONJUNCT1 ty1
        prove "!v:1. v = one" $
@@ -35,7 +35,7 @@ thm_one = cacheProof "thm_one" ctxtTriviaA $
          tacONCE_REWRITE [ruleGSYM th] `_THEN`
          tacASM_REWRITE_NIL
 
-induct_one :: (BasicConvs thry, TriviaACtxt thry) => HOL cls thry HOLThm
+induct_one :: TriviaACtxt thry => HOL cls thry HOLThm
 induct_one = cacheProof "induct_one" ctxtTriviaA $
     prove "!P. P one ==> !x. P x" $
       tacONCE_REWRITE [thm_one] `_THEN` tacREWRITE_NIL

@@ -31,7 +31,6 @@ import HaskHOL.Lib.Bool
 import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Misc
-import HaskHOL.Lib.Simp
 
 import HaskHOL.Lib.TypeQuant.Context
 
@@ -129,10 +128,10 @@ tacGEN_TY g@(Goal asl w) =
 
 -- More advanced elimination tactics
 
-tacUTYPE_E :: (BasicConvs thry, BoolCtxt thry) => HOLType -> Tactic cls thry
+tacUTYPE_E :: BoolCtxt thry => HOLType -> Tactic cls thry
 tacUTYPE_E ty = tacASSUM_REWRITE (ruleTYBETA <#< primTYAPP ty)
 
-tacTYABS_E :: (BasicConvs thry, BoolCtxt thry) => Tactic cls thry
+tacTYABS_E :: BoolCtxt thry => Tactic cls thry
 tacTYABS_E = tacASSUM_REWRITE $ \ thm -> 
     do tv <- liftMaybe ("tacTYABS_E: assumption not an equation of " ++ 
                         "universal type") $ do (l, _) <- destEq $ concl thm
@@ -140,11 +139,11 @@ tacTYABS_E = tacASSUM_REWRITE $ \ thm ->
                                                return tv
        ruleTYBETA #<< primTYAPP tv thm
 
-tacTYALL_ELIM :: (BasicConvs thry, TypeQuantCtxt thry) => HOLType 
+tacTYALL_ELIM :: TypeQuantCtxt thry => HOLType 
               -> Tactic cls thry
 tacTYALL_ELIM ty = tacASSUM_REWRITE (ruleSPEC_TY ty)
 
-tacTYALL_E :: (BasicConvs thry, TypeQuantCtxt thry) => Tactic cls thry
+tacTYALL_E :: TypeQuantCtxt thry => Tactic cls thry
 tacTYALL_E = tacASSUM_REWRITE $ \ thm -> 
     do tv <- liftMaybe ("tacTYALL_E: assumption does not have a universally " ++
                         "quantified type") . liftM fst . destTyAll $ concl thm

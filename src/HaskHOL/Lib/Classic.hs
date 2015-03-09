@@ -87,12 +87,12 @@ import HaskHOL.Lib.Classic.Base
 import HaskHOL.Lib.Classic.Context
 
 
-thmDE_MORGAN :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmDE_MORGAN :: ClassicCtxt thry => HOL cls thry HOLThm
 thmDE_MORGAN = cacheProof "thmDE_MORGAN" ctxtClassic $
     ruleTAUT [str| !t1 t2. (~(t1 /\ t2) <=> ~t1 \/ ~t2) /\ 
                            (~(t1 \/ t2) <=> ~t1 /\ ~t2) |]
 
-thmFORALL_BOOL :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmFORALL_BOOL :: ClassicCtxt thry => HOL cls thry HOLThm
 thmFORALL_BOOL = cacheProof "thmFORALL_BOOL" ctxtClassic $
     prove [str| (!b. P b) <=> P T /\ P F |] $
       tacEQ `_THEN`
@@ -102,7 +102,7 @@ thmFORALL_BOOL = cacheProof "thmFORALL_BOOL" ctxtClassic $
       tacBOOL_CASES "b:bool" `_THEN`
       tacASM_REWRITE_NIL
 
-thmNOT_EXISTS :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmNOT_EXISTS :: ClassicCtxt thry => HOL cls thry HOLThm
 thmNOT_EXISTS = cacheProof "thmNOT_EXISTS" ctxtClassic $
     prove "!P. ~(?x:A. P x) <=> (!x. ~(P x))" $
       tacGEN `_THEN`
@@ -118,42 +118,42 @@ thmNOT_EXISTS = cacheProof "thmNOT_EXISTS" ctxtClassic $
         tacASM_REWRITE_NIL
       ]
 
-thmEXISTS_NOT :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmEXISTS_NOT :: ClassicCtxt thry => HOL cls thry HOLThm
 thmEXISTS_NOT = cacheProof "thmEXISTS_NOT" ctxtClassic $
     prove "!P. (?x:A. ~(P x)) <=> ~(!x. P x)" $
       tacONCE_REWRITE [ruleTAUT "(a <=> ~b) <=> (~a <=> b)"] `_THEN`
       tacREWRITE [thmNOT_EXISTS]
 
-thmNOT_FORALL :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmNOT_FORALL :: ClassicCtxt thry => HOL cls thry HOLThm
 thmNOT_FORALL = cacheProof "thmNOT_FORALL" ctxtClassic $
     prove "!P. ~(!x. P x) <=> (?x:A. ~(P x))" $
       tacMATCH_ACCEPT (ruleGSYM thmEXISTS_NOT)
 
-thmLEFT_FORALL_OR :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmLEFT_FORALL_OR :: ClassicCtxt thry => HOL cls thry HOLThm
 thmLEFT_FORALL_OR = cacheProof "thmLEFT_FORALL_OR" ctxtClassic $
    prove [str| !P Q. (!x:A. P x \/ Q) <=> (!x. P x) \/ Q |] $
      _REPEAT tacGEN `_THEN`
      tacONCE_REWRITE [ruleTAUT "(a <=> b) <=> (~a <=> ~b)"] `_THEN`
      tacREWRITE [thmNOT_FORALL, thmDE_MORGAN, thmLEFT_EXISTS_AND]
 
-thmRIGHT_FORALL_OR :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmRIGHT_FORALL_OR :: ClassicCtxt thry => HOL cls thry HOLThm
 thmRIGHT_FORALL_OR = cacheProof "thmRIGHT_FORALL_OR" ctxtClassic $
     prove [str| !P Q. (!x:A. P \/ Q x) <=> P \/ (!x. Q x) |] $
       _REPEAT tacGEN `_THEN`
       tacONCE_REWRITE [ruleTAUT "(a <=> b) <=> (~a <=> ~b)"] `_THEN`
       tacREWRITE [thmNOT_FORALL, thmDE_MORGAN, thmRIGHT_EXISTS_AND]
 
-thmLEFT_OR_FORALL :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmLEFT_OR_FORALL :: ClassicCtxt thry => HOL cls thry HOLThm
 thmLEFT_OR_FORALL = cacheProof "thmLEFT_OR_FORALL" ctxtClassic $
     prove [str| !P Q. (!x:A. P x) \/ Q <=> (!x. P x \/ Q) |] $
       tacMATCH_ACCEPT (ruleGSYM thmLEFT_FORALL_OR)
 
-thmRIGHT_OR_FORALL :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmRIGHT_OR_FORALL :: ClassicCtxt thry => HOL cls thry HOLThm
 thmRIGHT_OR_FORALL = cacheProof "thmRIGHT_OR_FORALL" ctxtClassic $
     prove [str| !P Q. P \/ (!x:A. Q x) <=> (!x. P \/ Q x) |] $
       tacMATCH_ACCEPT (ruleGSYM thmRIGHT_FORALL_OR)
 
-thmSKOLEM :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmSKOLEM :: ClassicCtxt thry => HOL cls thry HOLThm
 thmSKOLEM = cacheProof "thmSKOLEM" ctxtClassic $
     prove "!P. (!x:A. ?y:B. P x y) <=> (?y. !x. P x (y x))" $
       _REPEAT (tacSTRIP `_ORELSE` tacEQ) `_THENL`
@@ -206,7 +206,7 @@ convETA = Conv $ \ tm ->
                   
 
 
-thmFUN_EQ :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmFUN_EQ :: ClassicCtxt thry => HOL cls thry HOLThm
 thmFUN_EQ = cacheProof "thmFUN_EQ" ctxtClassic $
     prove "!(f:A->B) g. f = g <=> (!x. f x = g x)" $
       _REPEAT tacGEN `_THEN`
@@ -217,28 +217,26 @@ thmFUN_EQ = cacheProof "thmFUN_EQ" ctxtClassic $
 
 -- expand quantification over booleans
 
-thmEXISTS_BOOL :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmEXISTS_BOOL :: ClassicCtxt thry => HOL cls thry HOLThm
 thmEXISTS_BOOL = cacheProof "thmEXISTS_BOOL" ctxtClassic $
     prove [str| (?b. P b) <=> P T \/ P F |] $
       tacMATCH_MP (ruleTAUT "(~p <=> ~q) ==> (p <=> q)") `_THEN`
       tacREWRITE [thmDE_MORGAN, thmNOT_EXISTS, thmFORALL_BOOL]
 
 -- classically based rules
-convCONTRAPOS :: (BasicConvs thry, ClassicCtxt thry) => Conversion cls thry
+convCONTRAPOS :: ClassicCtxt thry => Conversion cls thry
 convCONTRAPOS = Conv $ \ tm ->
     do (a, b) <- pairMapM serve ([classic| a:bool |], [classic| b:bool |])
        pth <- convCONTRAPOS_pth
        liftMaybe "convCONTRAPOS: " $
          do (p, q) <- destImp tm
             primINST [(a, p), (b, q)] pth
-  where convCONTRAPOS_pth :: (BasicConvs thry, ClassicCtxt thry) 
-                          => HOL cls thry HOLThm
+  where convCONTRAPOS_pth :: ClassicCtxt thry => HOL cls thry HOLThm
         convCONTRAPOS_pth = cacheProof "convCONTRAPOS_pth" ctxtClassic $
             ruleTAUT "(a ==> b) <=> (~b ==> ~a)"
 
 -- refutation tactic
-tacREFUTE_THEN :: (BasicConvs thry, ClassicCtxt thry) => ThmTactic cls thry 
-               -> Tactic cls thry
+tacREFUTE_THEN :: ClassicCtxt thry => ThmTactic cls thry -> Tactic cls thry
 tacREFUTE_THEN ttac gl@(Goal _ w) =
     do fTm <- serve [classic| F |]
        if w == fTm 
@@ -246,22 +244,21 @@ tacREFUTE_THEN ttac gl@(Goal _ w) =
           else if isNeg w then _DISCH_THEN ttac gl
                else (tacCONV (convREWR tacREFUTE_THEN_pth) `_THEN` 
                      _DISCH_THEN ttac) gl
-  where tacREFUTE_THEN_pth :: (BasicConvs thry, ClassicCtxt thry) 
-                           => HOL cls thry HOLThm
+  where tacREFUTE_THEN_pth :: ClassicCtxt thry => HOL cls thry HOLThm
         tacREFUTE_THEN_pth = cacheProof "tacREFUTE_THEN_pth" ctxtClassic $
             ruleTAUT "p <=> ~p ==> F"
 
 
 -- skolemization
 
-thmUNIQUE_SKOLEM_ALT :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmUNIQUE_SKOLEM_ALT :: ClassicCtxt thry => HOL cls thry HOLThm
 thmUNIQUE_SKOLEM_ALT = cacheProof "thmUNIQUE_SKOLEM_ALT" ctxtClassic $
     prove [str| !P:A->B->bool. 
                 (!x. ?!y. P x y) <=> ?f. !x y. P x y <=> (f x = y) |] $
       tacGEN `_THEN` tacREWRITE [thmEXISTS_UNIQUE_ALT, thmSKOLEM]
 
 -- basic selection theorems
-thmSELECT_UNIQUE :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmSELECT_UNIQUE :: ClassicCtxt thry => HOL cls thry HOLThm
 thmSELECT_UNIQUE = cacheProof "thmSELECT_UNIQUE" ctxtClassic $
     prove "!P x. (!y:A. P y = (y = x)) ==> ((@) P = x)" $
       _REPEAT tacSTRIP `_THEN`
@@ -296,7 +293,7 @@ addTypeDef name stuff =
 makeAcidic ''TypeDefs ['getTypeDefs, 'getTypeDef, 'addTypeDef]
 
 
-newTypeDefinition :: (BasicConvs thry, ClassicCtxt thry, 
+newTypeDefinition :: (ClassicCtxt thry, 
                       HOLThmRep thm Theory thry) => Text 
                   -> Text -> Text -> thm -> HOL Theory thry HOLThm
 newTypeDefinition tyname absname repname pth =
@@ -330,7 +327,7 @@ getTypeDefinition tyname =
        closeAcidStateHOL acid
        liftMaybe "getTypeDefinition: type name not found." th
 
-ruleSEL :: (BasicConvs thry, ClassicCtxt thry) => HOLThm -> HOL cls thry HOLThm
+ruleSEL :: ClassicCtxt thry => HOLThm -> HOL cls thry HOLThm
 ruleSEL th = ruleCONV (convRATOR (convREWR thmEXISTS) `_THEN` convBETA) th
 
 checkDistinct :: Eq a => [a] -> Bool
@@ -341,8 +338,7 @@ checkDistinct l =
       Just{} -> True
       _ -> False
 
-specify :: (BasicConvs thry, ClassicCtxt thry) => HOLThm -> Text 
-        -> HOL Theory thry HOLThm
+specify :: ClassicCtxt thry => HOLThm -> Text -> HOL Theory thry HOLThm
 specify th name =
     do th1 <- ruleSEL th
        case concl th1 of
@@ -379,7 +375,7 @@ makeAcidic ''Specifications
     ['getSpecifications, 'getASpecification, 'addSpecification]
 
 
-newSpecification :: (BasicConvs thry, ClassicCtxt thry) => [Text] -> HOLThm 
+newSpecification :: ClassicCtxt thry => [Text] -> HOLThm 
                  -> HOL Theory thry HOLThm
 newSpecification names th =
     let (asl, c) = destThm th in
@@ -414,16 +410,16 @@ getSpecification names =
        closeAcidStateHOL acid
        liftMaybe "getSpecification: constants not found." th
 
-thmCOND_ELIM :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmCOND_ELIM :: ClassicCtxt thry => HOL cls thry HOLThm
 thmCOND_ELIM = cacheProof "thmCOND_ELIM" ctxtClassic $
     prove [str| (P:A->bool) (if c then x else y) <=> 
                 (c ==> P x) /\ (~c ==> P y) |] $
       tacBOOL_CASES "c:bool" `_THEN` tacREWRITE_NIL
 
-convCOND_ELIM :: (BasicConvs thry, ClassicCtxt thry) => Conversion cls thry
+convCOND_ELIM :: ClassicCtxt thry => Conversion cls thry
 convCOND_ELIM = convHIGHER_REWRITE [thmCOND_ELIM] True
 
-tacCOND_CASES :: (BasicConvs thry, ClassicCtxt thry) => Tactic cls thry
+tacCOND_CASES :: ClassicCtxt thry => Tactic cls thry
 tacCOND_CASES =
     tacCONV convCOND_ELIM `_THEN` tacCONJ `_THENL`
     [ _DISCH_THEN (\ th -> tacASSUME th `_THEN` tacSUBST1 (ruleEQT_INTRO th))
@@ -433,15 +429,14 @@ tacCOND_CASES =
                              <|> (tacASSUME th `_THEN` 
                                   tacSUBST1 (ruleEQF_INTRO th)) g)
     ]
-  where ruleDENEG :: (BasicConvs thry, ClassicCtxt thry) => HOLThm 
+  where ruleDENEG :: ClassicCtxt thry => HOLThm 
                   -> HOL cls thry HOLThm
         ruleDENEG = ruleGEN_REWRITE id [tacCOND_CASES_pth]
 
-        tacCOND_CASES_pth :: (BasicConvs thry, ClassicCtxt thry) 
-                          => HOL cls thry HOLThm
+        tacCOND_CASES_pth :: ClassicCtxt thry => HOL cls thry HOLThm
         tacCOND_CASES_pth = cacheProof "tacCOND_CASES_pth" ctxtClassic $ 
             ruleTAUT "~ ~ p <=> p"
 
-thmCONTRAPOS :: (BasicConvs thry, ClassicCtxt thry) => HOL cls thry HOLThm
+thmCONTRAPOS :: ClassicCtxt thry => HOL cls thry HOLThm
 thmCONTRAPOS = cacheProof "thmCONTRAPOS" ctxtClassic $
     ruleTAUT "!t1 t2. (~t1 ==> ~t2) <=> (t2 ==> t1)"

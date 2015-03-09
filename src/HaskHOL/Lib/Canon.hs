@@ -40,43 +40,43 @@ import HaskHOL.Lib.Trivia
 import HaskHOL.Lib.Trivia.Context
 
 
-pthNotNot :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthNotNot :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotNot = cacheProof "pthNotNot" ctxtTrivia $ 
     ruleTAUT "~ ~ p = p"
 
-pthNotAnd :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthNotAnd :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotAnd = cacheProof "pthNotAnd" ctxtTrivia $ 
     ruleTAUT [str| ~(p /\ q) <=> ~p \/ ~q |]
 
-pthNotOr :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthNotOr :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotOr = cacheProof "pthNotOr" ctxtTrivia $ 
     ruleTAUT [str| ~(p \/ q) <=> ~p /\ ~q |]
 
-pthImp :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthImp :: TriviaCtxt thry => HOL cls thry HOLThm
 pthImp = cacheProof "pthImp" ctxtTrivia $ 
     ruleTAUT [str| p ==> q <=> ~p \/ q |]
 
-pthNotImp :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthNotImp :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotImp = cacheProof "pthNotImp" ctxtTrivia $ 
     ruleTAUT [str| ~(p ==> q) <=> p /\ ~q |]
 
-pthEq :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthEq :: TriviaCtxt thry => HOL cls thry HOLThm
 pthEq = cacheProof "pthEq" ctxtTrivia $ 
     ruleTAUT [str| (p <=> q) <=> p /\ q \/ ~p /\ ~q |]
 
-pthNotEq :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthNotEq :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotEq = cacheProof "pthNotEq" ctxtTrivia $ 
     ruleTAUT [str| ~(p <=> q) <=> p /\ ~q \/ ~p /\ q |]
 
-pthEq' :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthEq' :: TriviaCtxt thry => HOL cls thry HOLThm
 pthEq' = cacheProof "pthEq'" ctxtTrivia $ 
     ruleTAUT [str| (p <=> q) <=> (p \/ ~q) /\ (~p \/ q) |]
 
-pthNotEq' :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthNotEq' :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotEq' = cacheProof "pthNotEq'" ctxtTrivia $ 
     ruleTAUT [str| ~(p <=> q) <=> (p \/ q) /\ (~p \/ ~q) |]
 
-pthNots :: (BasicConvs thry, TriviaCtxt thry) => [HOL cls thry HOLThm]
+pthNots :: TriviaCtxt thry => [HOL cls thry HOLThm]
 pthNots =
     cacheProofs ["pthNotForall", "pthNotExists", "pthNotExu"] ctxtTrivia $
       ruleCONJUNCTS =<< 
@@ -91,16 +91,16 @@ pthNots =
                       , thmDE_MORGAN, thmNOT_IMP ] `_THEN`
            tacREWRITE [thmCONJ_ASSOC, thmEQ_SYM_EQ])
 
-pthNotForall :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthNotForall :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotForall = pthNots !! 0
 
-pthNotExists :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthNotExists :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotExists = pthNots !! 1
 
-pthNotExu :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthNotExu :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotExu = pthNots !! 2
 
-pthExu :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+pthExu :: TriviaCtxt thry => HOL cls thry HOLThm
 pthExu = cacheProof "pthExu" ctxtTrivia $
     prove [str| ((?!) P) <=> (?x:A. P x) /\ 
                 !x y. ~(P x) \/ ~(P y) \/ (y = x) |] $
@@ -109,7 +109,7 @@ pthExu = cacheProof "pthExu" ctxtTrivia $
                  , ruleTAUT [str| a /\ b ==> c <=> ~a \/ ~b \/ c |] ] `_THEN`
       tacREWRITE [thmEQ_SYM_EQ]
 
-convPRESIMP :: (BasicConvs thry, ClassicCtxt thry) => Conversion cls thry 
+convPRESIMP :: ClassicCtxt thry => Conversion cls thry 
 convPRESIMP = Conv $ \ tm ->
     let ths = [ thmNOT_CLAUSES, thmAND_CLAUSES, thmOR_CLAUSES
               , thmIMP_CLAUSES, thmEQ_CLAUSES, thmFORALL_SIMP 
@@ -145,7 +145,7 @@ ruleCONJ_ACI fm =
               else return $! (tm |-> th) fn
 
 
-convSKOLEM :: (BasicConvs thry, ClassicCtxt thry) => Conversion cls thry 
+convSKOLEM :: ClassicCtxt thry => Conversion cls thry 
 convSKOLEM = Conv $ \ tm ->
     let ths1 = [ thmEXISTS_OR, thmLEFT_EXISTS_AND
                , thmRIGHT_EXISTS_AND, thmFORALL_AND 
@@ -160,7 +160,7 @@ convSKOLEM = Conv $ \ tm ->
                convGEN_REWRITE convREDEPTH ths2) tm
 
 
-convPRENEX :: (BasicConvs thry, ClassicCtxt thry) => Conversion cls thry 
+convPRENEX :: ClassicCtxt thry => Conversion cls thry 
 convPRENEX = Conv $ \ tm ->
     let ths = [ thmAND_FORALL, thmLEFT_AND_FORALL
               , thmRIGHT_AND_FORALL, thmLEFT_OR_FORALL
@@ -174,15 +174,13 @@ convPRENEX = Conv $ \ tm ->
 
 -- eliminate all lambda-terms exception those part of quantifiers
 
-convHALF_MK_ABS :: (BasicConvs thry, TriviaCtxt thry) => [HOLTerm] 
-                -> Conversion cls thry 
+convHALF_MK_ABS :: TriviaCtxt thry => [HOLTerm] -> Conversion cls thry 
 convHALF_MK_ABS = conv
     where conv [] = _ALL
           conv (_:vs) = convGEN_REWRITE id [convHALF_MK_ABS_pth] `_THEN` 
                         convBINDER (conv vs)
         
-          convHALF_MK_ABS_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                              => HOL cls thry HOLThm
+          convHALF_MK_ABS_pth :: TriviaCtxt thry => HOL cls thry HOLThm
           convHALF_MK_ABS_pth = cacheProof "convHALF_MK_ABS_pth" ctxtTrivia $
               prove [str| (s = \x. t x) <=> (!x. s x = t x) |] $
                 tacREWRITE [thmFUN_EQ]
@@ -209,17 +207,16 @@ elimLambda conv = Conv $ \ tm ->
                then runConv (convBINDER $ elimLambda conv) tm
                else runConv (convCOMB $ elimLambda conv) tm)
 
-applyPTH :: (BasicConvs thry, TriviaCtxt thry) => HOLThm -> HOL cls thry HOLThm
+applyPTH :: TriviaCtxt thry => HOLThm -> HOL cls thry HOLThm
 applyPTH = ruleMATCH_MP applyPTH_pth
-  where applyPTH_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                     => HOL cls thry HOLThm
+  where applyPTH_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         applyPTH_pth = cacheProof "applyPTH_pth" ctxtTrivia $
             prove [str| (!a. (a = c) ==> (P = Q a)) ==> 
                         (P <=> !a. (a = c) ==> Q a) |] $
               tacSIMP [thmLEFT_FORALL_IMP, thmEXISTS_REFL]
 
 
-convLAMB1 :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convLAMB1 :: TriviaCtxt thry => Conversion cls thry
 convLAMB1 = Conv $ \ tm ->
     (case findLambda tm of
        Just atm@( Abs v _) -> 
@@ -235,22 +232,21 @@ convLAMB1 = Conv $ \ tm ->
        _ -> fail "")
     <?> "convLAMB1"
 
-convLAMBDA_ELIM :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convLAMBDA_ELIM :: TriviaCtxt thry => Conversion cls thry
 convLAMBDA_ELIM = conv
     where conv = Conv $ \ tm -> runConv (convLAMB1 `_THEN` conv) tm
                                  <|> (return $! primREFL tm)
 
 -- eliminate select terms from a goal
 
-selectElimThm :: (BasicConvs thry, TriviaCtxt thry) => HOLTerm 
+selectElimThm :: TriviaCtxt thry => HOLTerm 
               -> HOL cls thry HOLThm
 selectElimThm ( Comb ( Const "@" _) atm@( Abs bv _)) =
     do pth <- selectElimThm_pth
        ptm <- serve [trivia| P:A->bool |]
        ruleCONV (convLAND convBETA) #<< 
          rulePINST [(tyA, typeOf bv)] [(ptm, atm)] pth
-  where selectElimThm_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                          => HOL cls thry HOLThm
+  where selectElimThm_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         selectElimThm_pth = cacheProof "selectElimThm_pth" ctxtTrivia $
             prove "(P:A->bool)((@) P) <=> (?) P" $
               tacREWRITE [thmEXISTS] `_THEN`
@@ -259,7 +255,7 @@ selectElimThm ( Comb ( Const "@" _) atm@( Abs bv _)) =
 selectElimThm _ = fail "selectElimThm: not a select term"
 
  
-convSELECT_ELIM :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convSELECT_ELIM :: TriviaCtxt thry => Conversion cls thry
 convSELECT_ELIM = Conv $ \ tm ->
     do ths <- mapM selectElimThm $ findTerms isSelect tm
        runConv (convPURE_REWRITE ths) tm
@@ -311,7 +307,7 @@ iconvSELECT_ELIMS = Conv $ \ tm ->
         ruleIMP_TRANS th2 th)
     <|> (ruleDISCH tm #<< primASSUME tm)
 
-tacSELECT_ELIM :: (BasicConvs thry, TriviaCtxt thry) => Tactic cls thry
+tacSELECT_ELIM :: TriviaCtxt thry => Tactic cls thry
 tacSELECT_ELIM = 
     tacCONV convSELECT_ELIM `_THEN` 
     (\ g@(Goal _ w) -> do th <- runConv iconvSELECT_ELIMS w
@@ -329,8 +325,7 @@ findConditional fvs tm@( Comb s t)
 findConditional fvs ( Abs x t) = findConditional (x:fvs) t
 findConditional _ _ = Nothing
 
-condsElimConv :: (BasicConvs thry, TriviaCtxt thry) => Bool 
-              -> Conversion cls thry    
+condsElimConv :: TriviaCtxt thry => Bool -> Conversion cls thry    
 condsElimConv dfl = Conv $ \ tm ->
     (case findConditional [] tm of
        Just t -> 
@@ -369,16 +364,14 @@ condsElimConv dfl = Conv $ \ tm ->
              runConv (convBINDER $ condsElimConv True) tm
          | otherwise -> return $! primREFL tm)
     <?> "condsElimConv"
-  where convCONDS_ELIM_thCond :: (BasicConvs thry, TriviaCtxt thry) 
-                              => HOL cls thry HOLThm
+  where convCONDS_ELIM_thCond :: TriviaCtxt thry => HOL cls thry HOLThm
         convCONDS_ELIM_thCond = cacheProof "convCONDS_ELIM_thCond" ctxtTrivia $
             prove [str| ((b <=> F) ==> x = x0) /\ 
                         ((b <=> T) ==> x = x1) ==> 
                         x = (b /\ x1 \/ ~b /\ x0) |] $
               tacBOOL_CASES "b:bool" `_THEN` tacASM_REWRITE_NIL
 
-        convCONDS_ELIM_thCond' :: (BasicConvs thry, TriviaCtxt thry) 
-                               => HOL cls thry HOLThm
+        convCONDS_ELIM_thCond' :: TriviaCtxt thry => HOL cls thry HOLThm
         convCONDS_ELIM_thCond' = 
             cacheProof "convCONDS_ELIM_thCond'" ctxtTrivia $
               prove [str| ((b <=> F) ==> x = x0) /\ 
@@ -387,14 +380,14 @@ condsElimConv dfl = Conv $ \ tm ->
                 tacBOOL_CASES "b:bool" `_THEN` tacASM_REWRITE_NIL
 
 
-convCONDS_ELIM :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convCONDS_ELIM :: TriviaCtxt thry => Conversion cls thry
 convCONDS_ELIM = condsElimConv True
 
-convCONDS_CELIM :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convCONDS_CELIM :: TriviaCtxt thry => Conversion cls thry
 convCONDS_CELIM = condsElimConv False
 
 -- Weak DNF
-distributeDNF :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+distributeDNF :: TriviaCtxt thry => Conversion cls thry
 distributeDNF = Conv $ \ tm ->
     (do tmA <- serve [trivia| a:bool |]
         tmB <- serve [trivia| b:bool |]
@@ -412,17 +405,15 @@ distributeDNF = Conv $ \ tm ->
                  liftO $ primTRANS th th'
           _ -> return $! primREFL tm)
     <?> "distributeDNF"
-  where convWEAK_DNF_pth1 :: (BasicConvs thry, TriviaCtxt thry) 
-                          => HOL cls thry HOLThm
+  where convWEAK_DNF_pth1 :: TriviaCtxt thry => HOL cls thry HOLThm
         convWEAK_DNF_pth1 = cacheProof "convWEAK_DNF_pth1" ctxtTrivia $
             ruleTAUT [str| a /\ (b \/ c) <=> a /\ b \/ a /\ c |]
 
-        convWEAK_DNF_pth2 :: (BasicConvs thry, TriviaCtxt thry) 
-                          => HOL cls thry HOLThm
+        convWEAK_DNF_pth2 :: TriviaCtxt thry => HOL cls thry HOLThm
         convWEAK_DNF_pth2 = cacheProof "convWEAK_DNF_pth2" ctxtTrivia $
             ruleTAUT [str| (a \/ b) /\ c <=> a /\ c \/ b /\ c |]
 
-convWEAK_DNF :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convWEAK_DNF :: TriviaCtxt thry => Conversion cls thry
 convWEAK_DNF = Conv $ \ tm ->
     case tm of
       (Comb (Const "!" _) Abs{}) -> runConv (convBINDER convWEAK_DNF) tm
@@ -437,7 +428,7 @@ convWEAK_DNF = Conv $ \ tm ->
       _ -> return $! primREFL tm
 
 -- Weak CNF
-distribute :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+distribute :: TriviaCtxt thry => Conversion cls thry
 distribute = Conv $ \ tm ->
     (do aTm <- serve [trivia| a:bool |]
         bTm <- serve [trivia| b:bool |]
@@ -457,19 +448,17 @@ distribute = Conv $ \ tm ->
                  fromRightM $ primTRANS th rth
           _ -> return $! primREFL tm)
     <?> "distribute"
-  where distribute_pth1 :: (BasicConvs thry, TriviaCtxt thry) 
-                        => HOL cls thry HOLThm
+  where distribute_pth1 :: TriviaCtxt thry => HOL cls thry HOLThm
         distribute_pth1 = cacheProof "distribute_pth1" ctxtTrivia $
             ruleTAUT [str| a \/ (b /\ c) <=> (a \/ b) /\ (a \/ c) |]
 
-        distribute_pth2 :: (BasicConvs thry, TriviaCtxt thry) 
-                        => HOL cls thry HOLThm
+        distribute_pth2 :: TriviaCtxt thry => HOL cls thry HOLThm
         distribute_pth2 = cacheProof "distribute_pth2" ctxtTrivia $
             ruleTAUT [str| (a /\ b) \/ c <=> (a \/ c) /\ (b \/ c) |]
 
 
 
-convWEAK_CNF :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convWEAK_CNF :: TriviaCtxt thry => Conversion cls thry
 convWEAK_CNF = Conv $ \ tm ->
     (case tm of
        (Comb ( Const "!" _) ( Abs{})) -> runConv (convBINDER convWEAK_CNF) tm
@@ -553,20 +542,19 @@ getThmHeads :: HOLThm -> ([(HOLTerm, Int)], [(HOLTerm, Int)]) ->
                ([(HOLTerm, Int)], [(HOLTerm, Int)])
 getThmHeads th = getHeads (catFrees $ hyp th) (concl th)
 
-convAPP :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convAPP :: TriviaCtxt thry => Conversion cls thry
 convAPP = convREWR convAPP_pth
-    where convAPP_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                      => HOL cls thry HOLThm
+    where convAPP_pth :: TriviaCtxt thry => HOL cls thry HOLThm
           convAPP_pth = cacheProof "convAPP_pth" ctxtTrivia $
               prove "!(f:A->B) x. f x = I f x" $
                 tacREWRITE [thmI]
 
-convAPP_N :: (BasicConvs thry, TriviaCtxt thry) => Int -> Conversion cls thry
+convAPP_N :: TriviaCtxt thry => Int -> Conversion cls thry
 convAPP_N n =
     if n == 1 then convAPP
     else convRATOR (convAPP_N $ n - 1) `_THEN` convAPP 
 
-convFOL :: (BasicConvs thry, TriviaCtxt thry) => [(HOLTerm, Int)] 
+convFOL :: TriviaCtxt thry => [(HOLTerm, Int)] 
         -> Conversion cls thry
 convFOL hddata = Conv $ \ tm ->
     if isForall tm
@@ -586,8 +574,8 @@ convFOL hddata = Conv $ \ tm ->
                       else do th' <- runConv (convAPP_N n) tm'
                               fromRightM $ primTRANS th th'
 
-convGEN_FOL :: (BasicConvs thry, TriviaCtxt thry) 
-            => ([(HOLTerm, Int)], [(HOLTerm, Int)]) -> Conversion cls thry
+convGEN_FOL :: TriviaCtxt thry => ([(HOLTerm, Int)], [(HOLTerm, Int)]) 
+            -> Conversion cls thry
 convGEN_FOL (cheads, vheads) =
     let hddata = if null vheads
                  then let hops = setify $ map fst cheads
@@ -600,7 +588,7 @@ convGEN_FOL (cheads, vheads) =
       convFOL hddata
                      
 
-tacASM_FOL :: (BasicConvs thry, TriviaCtxt thry) => Tactic cls thry
+tacASM_FOL :: TriviaCtxt thry => Tactic cls thry
 tacASM_FOL gl@(Goal asl _) =
     let headsp = foldr (getThmHeads . snd) ([], []) asl in
       tacRULE_ASSUM (ruleCONV $ convGEN_FOL headsp) gl
@@ -613,7 +601,7 @@ notPTm = [trivia| (~) |]
 pPTm = [trivia| p:bool |]
 qPTm = [trivia| q:bool |]
 
-nnfDConv :: (BasicConvs thry, TriviaCtxt thry) => Bool 
+nnfDConv :: TriviaCtxt thry => Bool 
          -> (HOLTerm -> HOL cls thry (HOLThm, HOLThm)) -> HOLTerm 
          -> HOL cls thry (HOLThm, HOLThm)
 nnfDConv cf baseconvs ( Comb ( Comb ( Const "/\\" _) l) r) =
@@ -791,8 +779,7 @@ type NNFConv cls thry =
     Bool -> (Conversion cls thry, HOLTerm -> HOL cls thry (HOLThm, HOLThm)) -> 
     Conversion cls thry
 
-nnfConv' :: forall cls thry. (BasicConvs thry, TriviaCtxt thry) 
-         => NNFConv cls thry
+nnfConv' :: forall cls thry. TriviaCtxt thry => NNFConv cls thry
 nnfConv' cf baseconvs@(base1, base2) = Conv $ \ tm ->
     do orTm <- serve orPTm
        notTm <- serve notPTm
@@ -908,7 +895,7 @@ nnfConv' cf baseconvs@(base1, base2) = Conv $ \ tm ->
                liftO . primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pth
     
 
-nnfConv :: (BasicConvs thry, TriviaCtxt thry) => NNFConv cls thry
+nnfConv :: TriviaCtxt thry => NNFConv cls thry
 nnfConv cf baseconvs@(base1, base2) = Conv $ \ tm ->
     do orTm <- serve orPTm
        notTm <- serve notPTm
@@ -999,16 +986,16 @@ nnfConvBase base1 tm =
     <?> "nnfConv: base case"
 
 
-convGEN_NNF :: (BasicConvs thry, TriviaCtxt thry) => Bool 
+convGEN_NNF :: TriviaCtxt thry => Bool 
             -> (Conversion cls thry, HOLTerm -> HOL cls thry (HOLThm, HOLThm)) 
             -> Conversion cls thry
 convGEN_NNF = nnfConv
 
-convNNF :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convNNF :: TriviaCtxt thry => Conversion cls thry
 convNNF = convGEN_NNF False (_ALL, \ t -> do th <- liftM primREFL $ mkNeg t
                                              return (primREFL t, th))
 
-convNNFC :: (BasicConvs thry, TriviaCtxt thry) => Conversion cls thry
+convNNFC :: TriviaCtxt thry => Conversion cls thry
 convNNFC = convGEN_NNF True (_ALL, \ t -> do th <- liftM primREFL $ mkNeg t
                                              return (primREFL t, th))
                                                      

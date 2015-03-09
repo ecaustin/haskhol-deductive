@@ -36,6 +36,3 @@ type family ClassicCtxt a where
     ClassicCtxt a = (ClassicCCtxt a, ClassicContext a ~ 'True)
 
 type instance PolyTheory ClassicType b = ClassicCtxt b
-
-instance BasicConvs ClassicType where
-    basicConvs _ = []

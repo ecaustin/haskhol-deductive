@@ -105,14 +105,14 @@ getQuotientType name =
        closeAcidStateHOL acid
        liftMaybe "getQuotientType: type not found." qth
 
-thmSELECT_LEMMA :: (BasicConvs thry, TriviaCtxt thry) => HOL cls thry HOLThm
+thmSELECT_LEMMA :: TriviaCtxt thry => HOL cls thry HOLThm
 thmSELECT_LEMMA = cacheProof "thmSELECT_LEMMA" ctxtTrivia $
     prove [str| !x:A. (@y. x = y) = x |] $
       tacGEN `_THEN`
       tacGEN_REWRITE (convLAND . convBINDER) [thmEQ_SYM_EQ] `_THEN`
       tacMATCH_ACCEPT thmSELECT_REFL
 
-liftFunction :: (BasicConvs thry, TriviaCtxt thry, HOLThmRep thm1 Theory thry,
+liftFunction :: (TriviaCtxt thry, HOLThmRep thm1 Theory thry,
                  HOLThmRep thm2 Theory thry, HOLThmRep thm3 Theory thry,
                  HOLThmRep thm4 Theory thry) => thm1 -> thm2 -> thm3 -> Text 
              -> thm4 -> HOL Theory thry (HOLThm, HOLThm)
@@ -219,7 +219,7 @@ getLiftedFunction name =
        liftMaybe "getLiftedFunction: type not found." qth
 
 
-liftTheorem :: (BasicConvs thry, TriviaCtxt thry, HOLThmRep thm1 cls thry, 
+liftTheorem :: (TriviaCtxt thry, HOLThmRep thm1 cls thry, 
                 HOLThmRep thm2 cls thry, HOLThmRep thm3 cls thry,
                 HOLThmRep thm4 cls thry, HOLThmRep thm5 cls thry,
                 HOLThmRep thm6 cls thry) => (thm1, thm1) -> thm2 -> thm3 -> thm4
@@ -233,8 +233,7 @@ liftTheorem ptybij prefl_th psym_th ptrans_th ptrths pthm =
        cth <- foldr1M ruleCONJ [refl_th, sym_th, trans_th, tybij1, tybij2]
        ith <- ruleMATCH_MP liftTheorem_pth cth
        ruleREWRITE (ith:trths) pthm
-  where liftTheorem_pth :: (BasicConvs thry, TriviaCtxt thry) 
-                        => HOL cls thry HOLThm
+  where liftTheorem_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         liftTheorem_pth = cacheProof "liftTheorem_pth" ctxtTrivia $
             prove [str| (!x:Repty. R x x) /\
                         (!x y. R x y <=> R y x) /\

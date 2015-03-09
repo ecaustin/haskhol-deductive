@@ -37,6 +37,3 @@ type family TheoremsCtxt a :: Constraint where
     TheoremsCtxt a = (BoolCtxt a, TheoremsContext a ~ 'True)
 
 type instance PolyTheory TheoremsType b = TheoremsCtxt b
-
-instance BasicConvs TheoremsType where
-    basicConvs _ = []
