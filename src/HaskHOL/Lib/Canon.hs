@@ -296,7 +296,7 @@ iconvSELECT_ELIM = Conv $ \ tm ->
         th7 <- ruleDISCH gtm th6
         th8 <- ruleIMP_TRANS th7 th2
         th9 <- ruleDISCH rawdef th8
-        ruleMP (fromJust $ primINST [(atm, fn)] th9) $ primREFL atm)
+        ruleMP (fromJust $ primINST [(fn, atm)] th9) $ primREFL atm)
     <?> "iconvSELECT_ELIM"
 
 iconvSELECT_ELIMS :: TriviaCtxt thry => Conversion cls thry
