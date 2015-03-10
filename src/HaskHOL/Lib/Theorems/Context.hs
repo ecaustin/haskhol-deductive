@@ -2,6 +2,7 @@
              UndecidableInstances #-}
 module HaskHOL.Lib.Theorems.Context
     ( TheoremsType
+    , TheoremsThry
     , TheoremsCtxt
     , ctxtTheorems
     , theorems

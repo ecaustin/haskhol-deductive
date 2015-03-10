@@ -16,7 +16,9 @@ module HaskHOL.Lib.Bool
     ( -- * Theory Context
        -- $ThryCtxt
       BoolType
+    , BoolThry
     , BoolCtxt
+    , ctxtBool
       -- * General, Derived Rules 
     , rulePINST
     , rulePROVE_HYP

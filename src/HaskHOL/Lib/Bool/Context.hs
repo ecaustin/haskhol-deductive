@@ -53,8 +53,8 @@ ctxtBool = extendTheory ctxtBase $
 templateProvers 'ctxtBool
 
 -- have to manually write this, for now
--- we bake in ctxtname to clean stuff up later
+-- we bake in ctxtname and typeable to clean stuff up later
 type family BoolCtxt a :: Constraint where
-    BoolCtxt a = (CtxtName a, BaseCtxt a, BoolContext a ~ 'True)
+    BoolCtxt a = (Typeable a, BaseCtxt a, BoolContext a ~ 'True)
 
 type instance PolyTheory BoolType b = BoolCtxt b

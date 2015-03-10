@@ -2,6 +2,7 @@
              UndecidableInstances #-}
 module HaskHOL.Lib.Trivia.A.Context
     ( TriviaAType
+    , TriviaAThry
     , TriviaACtxt
     , ctxtTriviaA
     , triviaA

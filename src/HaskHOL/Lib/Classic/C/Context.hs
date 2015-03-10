@@ -2,6 +2,7 @@
              TypeFamilies, TypeSynonymInstances, UndecidableInstances #-}
 module HaskHOL.Lib.Classic.C.Context
     ( ClassicCType
+    , ClassicCThry
     , ClassicCCtxt
     , ctxtClassicC
     , classicC

@@ -2,6 +2,7 @@
              UndecidableInstances #-}
 module HaskHOL.Lib.IndDefs.Context
     ( IndDefsType
+    , IndDefsThry
     , IndDefsCtxt
     , ctxtIndDefs
     , indDefs
@@ -10,7 +11,6 @@ module HaskHOL.Lib.IndDefs.Context
 import HaskHOL.Core
 import HaskHOL.Lib.Theorems
 
-import HaskHOL.Lib.Theorems.Context
 import HaskHOL.Lib.IndDefs.Base
 
 templateTypes ctxtTheorems "IndDefs"

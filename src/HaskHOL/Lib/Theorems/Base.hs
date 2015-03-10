@@ -3,7 +3,6 @@ module HaskHOL.Lib.Theorems.Base where
 import HaskHOL.Core
 
 import HaskHOL.Lib.Bool
-import HaskHOL.Lib.Bool.Context
 import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Itab
 import HaskHOL.Lib.Simp

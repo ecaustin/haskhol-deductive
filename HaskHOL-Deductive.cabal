@@ -1,5 +1,5 @@
 name:          haskhol-deductive
-version:       0.1.0
+version:       0.2.0
 synopsis:      HaskHOL libraries for higher level deductive reasoning.
 description:   More details can be found at the following page:  
                http://haskhol.org. 
@@ -21,7 +21,7 @@ library
     build-depends:   base >= 4.7
                    , template-haskell >= 2.9
                    , wl-pprint-text >= 1.1
-                   , haskhol-core >= 1.1
+                   , haskhol-core >= 1.2
 
     exposed-modules:
       HaskHOL.Deductive

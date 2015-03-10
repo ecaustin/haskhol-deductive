@@ -27,7 +27,6 @@ import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Theorems
 import HaskHOL.Lib.Trivia
-import HaskHOL.Lib.Trivia.Context
 
 data LiftedFunctions = 
     LiftedFunctions !(Map Text (HOLThm, HOLThm)) deriving Typeable

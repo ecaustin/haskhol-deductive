@@ -9,7 +9,9 @@
 -}
 module HaskHOL.Lib.Theorems
     ( TheoremsType
+    , TheoremsThry
     , TheoremsCtxt
+    , ctxtTheorems
     , thmEQ_REFL_T
     , thmEQ_SYM
     , thmEQ_SYM_EQ

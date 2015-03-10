@@ -10,7 +10,9 @@
 -}
 module HaskHOL.Lib.TypeQuant
     ( TypeQuantType
+    , TypeQuantThry
     , TypeQuantCtxt
+    , ctxtTypeQuant
     , convALPHA_TY
     , convGEN_ALPHA_TY
     , ruleGEN_TY

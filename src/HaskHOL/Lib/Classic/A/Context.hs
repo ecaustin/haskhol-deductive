@@ -2,6 +2,7 @@
              UndecidableInstances #-}
 module HaskHOL.Lib.Classic.A.Context
     ( ClassicAType
+    , ClassicAThry
     , ClassicACtxt
     , ctxtClassicA
     , classicA

@@ -10,7 +10,9 @@
 -}
 module HaskHOL.Lib.IndDefs
     ( IndDefsType
+    , IndDefsThry
     , IndDefsCtxt
+    , ctxtIndDefs
     , ruleRIGHT_BETAS
     , ruleEXISTS_EQUATION
     , tacMONO

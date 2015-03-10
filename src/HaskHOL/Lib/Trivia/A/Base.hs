@@ -4,7 +4,6 @@ import HaskHOL.Core
 
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Classic
-import HaskHOL.Lib.Classic.Context
 import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Tactics
 

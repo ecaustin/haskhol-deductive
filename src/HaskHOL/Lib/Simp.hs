@@ -577,18 +577,21 @@ extendBasicConvs (name, (ptm, conv)) =
        rehashConvnet
 
 -- Interpreted code must be of type HOL Proof thry, so we need to
--- build the entire `runConv conv tm` rather than just recalling conv by name
-basicConvs :: CtxtName thry 
+-- generalize it when we recall it.
+mkConvGeneral :: Conversion Proof thry -> Conversion cls thry
+mkConvGeneral cnv = Conv $ \ tm ->
+    mkProofGeneral $ runConv cnv tm
+
+basicConvs :: Typeable thry 
            => HOL cls thry [(Text, (HOLTerm, Conversion cls thry))]
 basicConvs =
     do acid <- openLocalStateHOL (BasicConvs [])
        convs <- queryHOL acid GetConvs
        closeAcidStateHOL acid
-       return $! map (\ (x, (y, (m, mods))) -> (x, (y, Conv $ \ tm -> 
-                        do tm' <- showHOL tm
-                           let tm'' = "[str| " ++ tm' ++ " |]"
-                               expr = "runConv " ++ m ++ " =<< toHTm " ++ tm''
-                           runHOLHint expr ("HaskHOL.Lib.Equal":mods)))) convs
+       return $! map (\ (x, (y, (m, mods))) -> (x, (y, mkConvGeneral . 
+                        Conv $ \ tm -> 
+                          do cnv <- runHOLHint m mods
+                             runConv cnv tm))) convs
 
 basicNet :: BoolCtxt thry => HOL cls thry (Net (GConversion cls thry))
 basicNet =

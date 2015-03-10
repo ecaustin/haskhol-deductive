@@ -2,6 +2,7 @@
              UndecidableInstances #-}
 module HaskHOL.Lib.TypeQuant.Context
     ( TypeQuantType
+    , TypeQuantThry
     , TypeQuantCtxt
     , ctxtTypeQuant
     , typeQuant
