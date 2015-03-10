@@ -16,7 +16,7 @@ import HaskHOL.Lib.Classic.A.Base
 templateTypes ctxtIndDefs "ClassicA"
 
 ctxtClassicA :: TheoryPath ClassicAType
-ctxtClassicA = extendTheory ctxtIndDefs $
+ctxtClassicA = extendTheory ctxtIndDefs $(thisModule') $
     do parseAsBinder "@"
        newConstant "@" "(A->bool)->A"
        sequence_ [axETA', axSELECT']

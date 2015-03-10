@@ -9,13 +9,9 @@
   Portability: unknown
 -}
 module HaskHOL.Lib.Classic
-    ( ClassicType
-    , ClassicAThry
-    , ClassicBThry
-    , ClassicCThry
-    , ClassicThry
-    , ClassicCtxt
+    ( ClassicCtxt
     , ctxtClassic
+    , classic
     , axETA
     , convETA
     , thmEQ_EXT
@@ -83,7 +79,6 @@ import HaskHOL.Lib.Theorems
 
 -- B Module defines the rules needed for the second rewrite rule.
 -- Notably this is TAUT_TAC and rTAUT.
-import HaskHOL.Lib.Classic.A
 import HaskHOL.Lib.Classic.B
 import HaskHOL.Lib.Classic.C
 

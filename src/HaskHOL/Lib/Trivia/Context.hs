@@ -18,7 +18,7 @@ import HaskHOL.Lib.Trivia.Base
 templateTypes ctxtTriviaA "Trivia"
 
 ctxtTrivia :: TheoryPath TriviaType
-ctxtTrivia = extendTheory ctxtTriviaA $
+ctxtTrivia = extendTheory ctxtTriviaA ($thisModule') $
     do iTh <- induct_one
        rTh <- recursion_one
        addIndDefs [("1", (1, iTh, rTh))]

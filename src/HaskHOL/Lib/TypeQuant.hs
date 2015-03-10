@@ -9,10 +9,9 @@
   Portability: unknown
 -}
 module HaskHOL.Lib.TypeQuant
-    ( TypeQuantType
-    , TypeQuantThry
-    , TypeQuantCtxt
+    ( TypeQuantCtxt
     , ctxtTypeQuant
+    , typeQuant
     , convALPHA_TY
     , convGEN_ALPHA_TY
     , ruleGEN_TY
@@ -24,6 +23,7 @@ module HaskHOL.Lib.TypeQuant
     , tacTYABS_E
     , tacTYALL_ELIM
     , tacTYALL_E
+    , convTYBETA
     ) where
 
 import HaskHOL.Core

@@ -13,7 +13,9 @@
   for the Boolean logic library.
 -}
 module HaskHOL.Lib.Bool.Context
-    ( BoolType
+    ( -- * Theory Context
+       -- $ThryCtxt
+      BoolType
     , BoolThry
     , BoolCtxt
     , ctxtBool
@@ -24,10 +26,15 @@ import HaskHOL.Core
 
 import HaskHOL.Lib.Bool.Base
 
+{- $ThryCtxt
+  See 'templateTypes', 'extendCtxt', and 'templateProvers' in the 
+  "HaskHOL.Core.Ext" module for more information about these types and values.
+-}
+
 templateTypes ctxtBase "Bool"
 
 ctxtBool :: TheoryPath BoolType
-ctxtBool = extendTheory ctxtBase $
+ctxtBool = extendTheory ctxtBase $(thisModule') $
     do parseAsPrefix "~"
        mapM_ parseAsInfix [ ("==>", (4, "right"))
                           , ("\\/", (6, "right"))

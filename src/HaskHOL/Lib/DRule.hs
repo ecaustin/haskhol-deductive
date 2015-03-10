@@ -32,7 +32,6 @@ module HaskHOL.Lib.DRule
 
 import HaskHOL.Core
 import HaskHOL.Lib.Bool
-import HaskHOL.Lib.Bool.Context
 import HaskHOL.Lib.Equal
 
 -- | 'mkThm' can be used to construct an arbitrary 'HOLThm' using 'newAxiom'.

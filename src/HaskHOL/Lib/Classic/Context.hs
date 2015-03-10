@@ -19,7 +19,7 @@ import HaskHOL.Lib.Classic.Base
 templateTypes ctxtClassicC "Classic"
 
 ctxtClassic :: TheoryPath ClassicType
-ctxtClassic = extendTheory ctxtClassicC $
+ctxtClassic = extendTheory ctxtClassicC $(thisModule') $
     do mthm <- thmMONO_COND
        addMonoThm mthm
        cth <- thmCOND_CONG

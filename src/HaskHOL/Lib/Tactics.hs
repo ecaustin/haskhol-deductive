@@ -93,7 +93,6 @@ module HaskHOL.Lib.Tactics
 import HaskHOL.Core hiding (empty, (<$>))
 
 import HaskHOL.Lib.Bool
-import HaskHOL.Lib.Bool.Context
 import HaskHOL.Lib.Equal
 import HaskHOL.Lib.DRule
 

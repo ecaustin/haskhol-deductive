@@ -27,19 +27,29 @@ library
       HaskHOL.Deductive
       HaskHOL.Lib.Equal
       HaskHOL.Lib.Bool
+      HaskHOL.Lib.Bool.Context
       HaskHOL.Lib.DRule
       HaskHOL.Lib.Tactics
       HaskHOL.Lib.Itab
       HaskHOL.Lib.Simp
       HaskHOL.Lib.Theorems
+      HaskHOL.Lib.Theorems.Context
       HaskHOL.Lib.IndDefs
+      HaskHOL.Lib.IndDefs.Context 
       HaskHOL.Lib.Classic
+      HaskHOL.Lib.Classic.A.Context
+      HaskHOL.Lib.Classic.B.Context
+      HaskHOL.Lib.Classic.C.Context
+      HaskHOL.Lib.Classic.Context
       HaskHOL.Lib.Trivia
+      HaskHOL.Lib.Trivia.A.Context
+      HaskHOL.Lib.Trivia.Context
       HaskHOL.Lib.Canon
       HaskHOL.Lib.Meson
       HaskHOL.Lib.Quot
       HaskHOL.Lib.Misc
       HaskHOL.Lib.TypeQuant
+      HaskHOL.Lib.TypeQuant.Context
 
     exposed: True
     buildable: True
@@ -47,28 +57,18 @@ library
 
     other-modules:
       HaskHOL.Lib.Bool.Base
-      HaskHOL.Lib.Bool.Context
       HaskHOL.Lib.Theorems.Base
-      HaskHOL.Lib.Theorems.Context
       HaskHOL.Lib.IndDefs.Base
-      HaskHOL.Lib.IndDefs.Context 
       HaskHOL.Lib.Classic.A
       HaskHOL.Lib.Classic.A.Base
-      HaskHOL.Lib.Classic.A.Context
       HaskHOL.Lib.Classic.B
       HaskHOL.Lib.Classic.B.Base
-      HaskHOL.Lib.Classic.B.Context
       HaskHOL.Lib.Classic.C
       HaskHOL.Lib.Classic.C.Base
-      HaskHOL.Lib.Classic.C.Context
       HaskHOL.Lib.Classic.Base
-      HaskHOL.Lib.Classic.Context
       HaskHOL.Lib.Trivia.A
       HaskHOL.Lib.Trivia.A.Base
-      HaskHOL.Lib.Trivia.A.Context
       HaskHOL.Lib.Trivia.Base
-      HaskHOL.Lib.Trivia.Context
-      HaskHOL.Lib.TypeQuant.Context
              
     ghc-prof-options: -prof -fprof-auto
     ghc-options: -Wall -O2

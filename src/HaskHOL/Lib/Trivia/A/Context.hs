@@ -16,7 +16,7 @@ import HaskHOL.Lib.Trivia.A.Base
 templateTypes ctxtClassic "TriviaA"
 
 ctxtTriviaA :: TheoryPath TriviaAType
-ctxtTriviaA = extendTheory ctxtClassic $
+ctxtTriviaA = extendTheory ctxtClassic $(thisModule') $
     do parseAsInfix ("o", (26, "right"))
        sequence_ [defO', defI']
        void tyDefOne'

@@ -36,6 +36,7 @@ module HaskHOL.Deductive
     , module HaskHOL.Lib.Quot
     , module HaskHOL.Lib.Misc
     , module HaskHOL.Lib.TypeQuant
+    , module HaskHOL.Lib.TypeQuant.Context
     ) where
 
 import HaskHOL.Core

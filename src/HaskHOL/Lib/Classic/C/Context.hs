@@ -19,7 +19,7 @@ import HaskHOL.Lib.Classic.C.Base
 templateTypes ctxtClassicB "ClassicC"
 
 ctxtClassicC :: TheoryPath ClassicCType
-ctxtClassicC = extendTheory ctxtClassicB $
+ctxtClassicC = extendTheory ctxtClassicB $(thisModule') $
     extendBasicRewrites =<< 
       sequence [ruleCONJUNCT1 thmNOT_CLAUSES, thmCOND_CLAUSES]
 

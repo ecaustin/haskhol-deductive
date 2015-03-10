@@ -17,7 +17,7 @@ import HaskHOL.Lib.Classic.B.Base
 templateTypes ctxtClassicA "ClassicB"
 
 ctxtClassicB :: TheoryPath ClassicBType
-ctxtClassicB = extendTheory ctxtClassicA $
+ctxtClassicB = extendTheory ctxtClassicA $(thisModule') $
     extendBasicRewrites =<< sequence [ thmSELECT_REFL ]
 
 templateProvers 'ctxtClassicB

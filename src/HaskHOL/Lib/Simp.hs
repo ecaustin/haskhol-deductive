@@ -100,7 +100,6 @@ module HaskHOL.Lib.Simp
 import HaskHOL.Core
 
 import HaskHOL.Lib.Bool
-import HaskHOL.Lib.Bool.Context
 import HaskHOL.Lib.Equal
 import HaskHOL.Lib.Itab
 import HaskHOL.Lib.DRule
@@ -590,7 +589,7 @@ basicConvs =
        closeAcidStateHOL acid
        return $! map (\ (x, (y, (m, mods))) -> (x, (y, mkConvGeneral . 
                         Conv $ \ tm -> 
-                          do cnv <- runHOLHint m mods
+                          do cnv <- runHOLHint m ("HaskHOL.Lib.Equal":mods)
                              runConv cnv tm))) convs
 
 basicNet :: BoolCtxt thry => HOL cls thry (Net (GConversion cls thry))

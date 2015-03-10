@@ -8,11 +8,9 @@
   Portability: unknown
 -}
 module HaskHOL.Lib.Trivia
-    ( TriviaType
-    , TriviaAThry
-    , TriviaThry
-    , TriviaCtxt
+    ( TriviaCtxt
     , ctxtTrivia
+    , trivia
     , defI
     , defO
     , thmI
@@ -27,7 +25,6 @@ import HaskHOL.Core
 import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Tactics
 
-import HaskHOL.Lib.Trivia.A
 import HaskHOL.Lib.Trivia.Base
 import HaskHOL.Lib.Trivia.Context
 

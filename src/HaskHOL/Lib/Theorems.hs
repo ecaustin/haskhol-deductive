@@ -8,10 +8,9 @@
   Portability: unknown
 -}
 module HaskHOL.Lib.Theorems
-    ( TheoremsType
-    , TheoremsThry
-    , TheoremsCtxt
+    ( TheoremsCtxt
     , ctxtTheorems
+    , theorems
     , thmEQ_REFL_T
     , thmEQ_SYM
     , thmEQ_SYM_EQ

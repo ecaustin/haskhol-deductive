@@ -17,10 +17,10 @@ import HaskHOL.Lib.Trivia.Context
 templateTypes ctxtTrivia "TypeQuant"
 
 ctxtTypeQuant :: TheoryPath TypeQuantType
-ctxtTypeQuant = extendTheory ctxtTrivia $ 
-    do tm <- toHTm [str| ((\\ 'B. t):(% 'B. C)) [: 'A] |]
-       extendBasicConvs 
-         ("tybeta", (tm, ("convTYBETA", ["HaskHOL.Lib.TypeQuant"])))
+ctxtTypeQuant = extendTheory ctxtTrivia $(thisModule') $ 
+    extendBasicConvs 
+      ("tybeta", ([str| ((\\ 'B. t):(% 'B. C)) [: 'A] |], 
+       ("return convTYBETA", ["HaskHOL.Lib.TypeQuant"])))
 
 templateProvers 'ctxtTypeQuant
 

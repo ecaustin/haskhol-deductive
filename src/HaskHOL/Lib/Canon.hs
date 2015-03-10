@@ -37,7 +37,6 @@ import HaskHOL.Lib.Simp
 import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Trivia
-import HaskHOL.Lib.Trivia.Context
 
 
 pthNotNot :: TriviaCtxt thry => HOL cls thry HOLThm

@@ -13,12 +13,9 @@
   guarded with the 'BoolCtxt' type constraint.
 -}
 module HaskHOL.Lib.Bool
-    ( -- * Theory Context
-       -- $ThryCtxt
-      BoolType
-    , BoolThry
-    , BoolCtxt
+    ( BoolCtxt
     , ctxtBool
+    , bool
       -- * General, Derived Rules 
     , rulePINST
     , rulePROVE_HYP
@@ -90,11 +87,6 @@ import HaskHOL.Core
 import HaskHOL.Lib.Equal
 
 import HaskHOL.Lib.Bool.Context
-
-{- $ThryCtxt
-  See 'templateTypes', 'extendCtxt', and 'templateProvers' in the 
-  "HaskHOL.Core.Ext" module for more information about these types and values.
--}
 
 
 --allows easy instantiation for pro forma theorems

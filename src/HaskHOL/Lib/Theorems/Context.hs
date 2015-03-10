@@ -17,7 +17,7 @@ import HaskHOL.Lib.Theorems.Base
 templateTypes ctxtBool "Theorems"
 
 ctxtTheorems :: TheoryPath TheoremsType
-ctxtTheorems = extendTheory ctxtBool $
+ctxtTheorems = extendTheory ctxtBool $(thisModule') $
     do extendBasicRewrites =<< sequence [ thmREFL_CLAUSE
                                         , thmEQ_CLAUSES
                                         , thmNOT_CLAUSES_WEAK

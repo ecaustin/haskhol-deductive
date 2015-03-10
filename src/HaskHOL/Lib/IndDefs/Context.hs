@@ -11,12 +11,13 @@ module HaskHOL.Lib.IndDefs.Context
 import HaskHOL.Core
 import HaskHOL.Lib.Theorems
 
+import HaskHOL.Lib.Theorems.Context
 import HaskHOL.Lib.IndDefs.Base
 
 templateTypes ctxtTheorems "IndDefs"
 
 ctxtIndDefs :: TheoryPath IndDefsType
-ctxtIndDefs = extendTheory ctxtTheorems $
+ctxtIndDefs = extendTheory ctxtTheorems $(thisModule') $
     mapM_ addMonoThm [ thmMONO_AND, thmMONO_OR, thmMONO_IMP
                      , thmMONO_NOT, thmMONO_EXISTS, thmMONO_FORALL ]
 
