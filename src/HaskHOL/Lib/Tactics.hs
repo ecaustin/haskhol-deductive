@@ -104,7 +104,7 @@ type Justification cls thry = Instantiation -> [HOLThm] -> HOL cls thry HOLThm
 type JustificationList cls thry = 
     Instantiation -> [HOLThm] -> HOL cls thry [HOLThm]
 
-data Goal = Goal [(Text, HOLThm)] HOLTerm deriving Eq
+data Goal = Goal [(Text, HOLThm)] HOLTerm deriving (Eq, Typeable)
 
 instance ShowHOL cls thry Goal where
     showHOL = liftM show . ppGoal
@@ -125,7 +125,8 @@ ppASL n ((s, th):rest) =
 
 -- metavariables, instantiation, goal list, and justification
 data GoalState cls thry = 
-    GS ([HOLTerm], Instantiation) [Goal] (Justification cls thry)
+    GS ([HOLTerm], Instantiation) [Goal] (Justification cls thry) 
+       deriving Typeable
 
 instance ShowHOL cls thry (GoalState cls thry) where
     showHOL = liftM show . ppGoalState 1

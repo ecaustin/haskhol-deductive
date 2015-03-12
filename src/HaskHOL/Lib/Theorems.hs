@@ -228,12 +228,11 @@ thmLEFT_FORALL_IMP = cacheProof "thmLEFT_FORALL_IMP" ctxtTheorems $
     prove "!P Q. (!x. P x ==> Q) <=> ((?x:A. P x) ==> Q)" tacITAUT 
 
 thmEXISTS_REFL :: TheoremsCtxt thry => HOL cls thry HOLThm
-thmEXISTS_REFL = cacheProof "thmEXISTS_REFL" ctxtTheorems $
-    do a <- toHTm "a:A"
-       prove "!a:A. ?x. x = a" $
-         tacGEN `_THEN`
-         tacEXISTS a `_THEN`
-         tacREFL
+thmEXISTS_REFL = cacheProof "thmEXISTS_REFL" ctxtTheorems .
+    prove "!a:A. ?x. x = a" $
+      tacGEN `_THEN`
+      tacEXISTS "a:A" `_THEN`
+      tacREFL
 
 thmEXISTS_UNIQUE :: TheoremsCtxt thry => HOL cls thry HOLThm
 thmEXISTS_UNIQUE = cacheProof "thmEXISTS_UNIQUE" ctxtTheorems $

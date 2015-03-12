@@ -38,8 +38,7 @@ thmOR_CLAUSES = cacheProof "thmOR_CLAUSES" ctxtBool $
 
 thmREFL_CLAUSE :: BoolCtxt thry => HOL cls thry HOLThm
 thmREFL_CLAUSE = cacheProof "thmREFL_CLAUSE" ctxtBool $
-    do x <- toHTm "x:A"
-       th <- ruleEQT_INTRO =<< ruleSPEC x thmEQ_REFL
+    do th <- ruleEQT_INTRO =<< ruleSPEC "x:A" thmEQ_REFL
        prove "!x:A. (x = x) = T" $
          tacGEN `_THEN`
          tacACCEPT th

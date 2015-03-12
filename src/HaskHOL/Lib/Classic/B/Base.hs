@@ -51,7 +51,7 @@ thmEXISTS = cacheProof "thmEXISTS" ctxtClassicA $
 -- basic selection conversions
 convSELECT :: ClassicACtxt thry => Conversion cls thry
 convSELECT = Conv $ \ tm ->
-    do p <- toHTm "P:A->bool"
+    do p <- serve [bool| P:A->bool |]
        pth <- convSELECT_pth
        case findTerm (is_epsok tm) tm of
          Just (Comb _ lam@(Abs (Var _ ty) _)) -> 

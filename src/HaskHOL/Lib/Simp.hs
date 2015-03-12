@@ -63,6 +63,7 @@ module HaskHOL.Lib.Simp
        , rulePURE_ONCE_ASM_REWRITE
        , ruleONCE_ASM_REWRITE
        , tacGEN_REWRITE
+       , tacLESS_GEN_REWRITE
        , tacPURE_REWRITE
        , tacREWRITE
        , tacREWRITE_NIL
@@ -602,12 +603,12 @@ basicNet =
 
 rehashConvnet :: BoolCtxt thry => HOL cls thry ()
 rehashConvnet =
-  do rewrites <- basicRewrites
+  do putStrLnHOL "Rehashing Conversion net..."
+     rewrites <- basicRewrites
      cnvs <- liftM (map snd) basicConvs
      let convs = foldr (uncurry netOfConv) netEmpty cnvs
      net <- liftO $ foldrM (netOfThm True) convs rewrites
      writeHOLRef conversionNet (Just net)
-
 
 -- default congruences
 data Congruences = Congruences ![HOLThm] deriving Typeable
@@ -765,6 +766,14 @@ tacGEN_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) =>
                   (Conversion cls thry -> Conversion cls thry) ->
                   [thm] -> Tactic cls thry
 tacGEN_REWRITE cnvl thl = tacCONV (convGEN_REWRITE cnvl thl)
+
+tacLESS_GEN_REWRITE :: BoolCtxt thry => [HOLThm] 
+                    -> [(HOLTerm, Conversion cls thry)] 
+                    -> Tactic cls thry
+tacLESS_GEN_REWRITE rewrites cnvs g =
+    let convs = foldr (uncurry netOfConv) netEmpty cnvs in
+      do net <- liftO $ foldrM (netOfThm True) convs rewrites
+         tacCONV (convGENERAL_REWRITE' True convTOP_DEPTH net []) g
 
 tacPURE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
                 -> Tactic cls thry

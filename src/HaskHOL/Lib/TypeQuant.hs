@@ -83,8 +83,8 @@ ruleGEN_TY _ _ = fail "ruleGEN_TY: not a small, type variable"
 ruleSPEC_TY :: TypeQuantCtxt thry => HOLType -> HOLThm 
             -> HOL cls thry HOLThm
 ruleSPEC_TY ty thm =
-    do p <- toHTm "P: % 'A. bool"
-       x <- toHTy "'X"
+    do p <- serve [bool| P: % 'A. bool |]
+       x <- serve [bool| :'X |]
        pth <- ruleSPEC_TY_pth
        case rand $ concl thm of
          Just ab@TyAbs{} ->
