@@ -20,7 +20,7 @@ ctxtTypeQuant :: TheoryPath TypeQuantType
 ctxtTypeQuant = extendTheory ctxtTrivia $(thisModule') $ 
     extendBasicConvs 
       ("tybeta", ([str| ((\\ 'B. t):(% 'B. C)) [: 'A] |], 
-       ("return convTYBETA", ["HaskHOL.Lib.TypeQuant"])))
+       ("convTYBETA", "HaskHOL.Lib.TypeQuant")))
 
 templateProvers 'ctxtTypeQuant
 

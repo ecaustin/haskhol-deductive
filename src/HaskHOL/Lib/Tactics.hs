@@ -90,7 +90,7 @@ module HaskHOL.Lib.Tactics
     , composeInsts
     ) where
 
-import HaskHOL.Core hiding (empty, (<$>))
+import HaskHOL.Core hiding (empty)
 
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Equal

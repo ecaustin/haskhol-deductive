@@ -70,8 +70,9 @@ library
       HaskHOL.Lib.Trivia.A.Base
       HaskHOL.Lib.Trivia.Base
              
-    ghc-prof-options: -prof -fprof-auto
-    ghc-options: -Wall -O2
+    ghc-prof-options: -O2 -funbox-strict-fields -Wall -fprof-cafs -fprof-auto 
+                      -rtsopts
+    ghc-options: -O2 -funbox-strict-fields -Wall
 
 source-repository head
   type: git 

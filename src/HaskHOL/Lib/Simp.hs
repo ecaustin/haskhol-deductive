@@ -106,23 +106,41 @@ import HaskHOL.Lib.Itab
 import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Tactics
 
-import System.IO.Unsafe (unsafePerformIO)
-import Data.IORef
+-- Cacheable Conversions
+data CConv
+    = BASEABS HOLTerm HOLThm
+    | EQT_REWR HOLThm
+    | ORD_REWR HOLThm
+    | REWR HOLThm
+    | IMP_REWR (Maybe HOLTerm) HOLThm
+    | ORD_IMP_REWR HOLThm
+    | CONG Int HOLThm
+    | HINT String String deriving Typeable
+
+deriveSafeCopy 0 'base ''CConv
+
+instance Eq CConv where
+    _ == _ = False
+        
+instance Ord CConv where        
+    compare _ _ = GT
+    _ <= _ = False
+    _ < _ = False
 
 data BasicConvs = 
-    BasicConvs ![(Text, (HOLTerm, (String, [String])))] deriving Typeable
+    BasicConvs ![(Text, (HOLTerm, CConv))] deriving Typeable
 
 deriveSafeCopy 0 'base ''BasicConvs
 
-getConvs :: Query BasicConvs [(Text, (HOLTerm, (String, [String])))]
+getConvs :: Query BasicConvs [(Text, (HOLTerm, CConv))]
 getConvs =
     do (BasicConvs convs) <- ask
        return convs
 
-putConvs :: [(Text, (HOLTerm, (String, [String])))] -> Update BasicConvs ()
+putConvs :: [(Text, (HOLTerm, CConv))] -> Update BasicConvs ()
 putConvs convs = put (BasicConvs convs)
 
-addConv :: (Text, (HOLTerm, (String, [String]))) -> Update BasicConvs ()
+addConv :: (Text, (HOLTerm, CConv)) -> Update BasicConvs ()
 addConv (name, patcong) =
     do (BasicConvs convs) <- get
        put (BasicConvs $ (name, patcong) : 
@@ -130,11 +148,52 @@ addConv (name, patcong) =
 
 makeAcidic ''BasicConvs ['getConvs, 'putConvs, 'addConv]
 
-{-# NOINLINE conversionNet #-}
-conversionNet :: HOLRef (Maybe (Net (GConversion cls thry)))
-conversionNet = unsafePerformIO $ newIORef Nothing
+type GConversion = (Int, CConv)
 
-type GConversion cls thry = (Int, Conversion cls thry)
+data ConversionNet = ConversionNet !(Net GConversion) deriving Typeable
+
+deriveSafeCopy 0 'base ''ConversionNet
+
+getNet :: Query ConversionNet (Net GConversion)
+getNet =
+    do (ConversionNet net) <- ask
+       return net
+
+putNet :: Net GConversion -> Update ConversionNet ()
+putNet net = put (ConversionNet net)
+
+makeAcidic ''ConversionNet ['getNet, 'putNet]
+
+
+unCConv :: (Typeable thry, BoolCtxt thry) => CConv -> Conversion cls thry
+unCConv (HINT c m) = mkConvGeneral . Conv $ \ tm ->
+    do cnv <- runHOLHint ("return " ++ c) ("HaskHOL.Lib.Equal":[m])
+       runConv cnv tm
+-- Interpreted code must be of type HOL Proof thry, so we need to
+-- generalize it when we recall it.
+  where mkConvGeneral :: Conversion Proof thry -> Conversion cls thry
+        mkConvGeneral cnv = Conv $ \ tm ->
+            mkProofGeneral $ runConv cnv tm
+unCConv (BASEABS v th) = Conv $ \ tm ->
+    case tm of
+      (Abs y (Comb t y'))
+          | y == y' && not (y `freeIn` t) ->
+                do t' <- liftO $ termMatch [] v t
+                   ruleINSTANTIATE t' th
+          | otherwise -> fail "convREWR (axETA special case)"
+      _ -> fail "convREWR (axETA special case)"
+unCConv (EQT_REWR th) = Conv $ \ tm ->
+    do th' <- ruleEQT_INTRO th
+       runConv (convREWR th') tm
+unCConv (ORD_REWR th) = convORDERED_REWR termOrder th
+unCConv (REWR th) = convREWR th
+unCConv (IMP_REWR (Just t) th) = Conv $ \ tm ->
+    do th' <- ruleDISCH t =<< ruleEQT_INTRO =<< ruleUNDISCH th
+       runConv (convIMP_REWR th') tm
+unCConv (IMP_REWR Nothing th) = convIMP_REWR th
+unCConv (ORD_IMP_REWR th) = convORDERED_IMP_REWR termOrder th
+unCConv (CONG n th) = Conv $ \ tm ->
+    ruleGEN_PART_MATCH (lHand <=< funpowM n rand) th tm
 
 -- primitive rewriting conversionals
 convREWR :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm 
@@ -194,9 +253,7 @@ termOrder tm1 tm2 =
        return $! dyn_order tm tm1 tm2
 
 -- create a net for a theorem
-netOfThm :: BoolCtxt thry => Bool -> HOLThm 
-         -> Net (GConversion cls thry) 
-         -> Maybe (Net (GConversion cls thry))
+netOfThm :: Bool -> HOLThm -> Net GConversion -> Maybe (Net GConversion)
 netOfThm rep th net = 
   let tm = concl th
       lconsts = catFrees $ hyp th
@@ -204,46 +261,27 @@ netOfThm rep th net =
     case tm of
       (l@(Abs x (Comb v@Var{} x')) := v') ->
           if x' == x && v' == v && x /= v
-          then return $! netEnter lconsts 
-                           (l, (1, convBASEABS v th)) net
+          then return $! netEnter lconsts (l, (1, BASEABS v th)) net
           else Nothing
       (l := r) ->
           if rep && l `freeIn` r
-          then return $! 
-                 netEnter lconsts (l, (1,
-                   Conv $ \ x -> do th' <- ruleEQT_INTRO th
-                                    runConv (convREWR th') x)) net
+          then return $! netEnter lconsts (l, (1, EQT_REWR th)) net
           else do cond1 <- matchable l r
                   cond2 <- matchable r l
                   if rep && cond1 && cond2
-                    then return $! netEnter lconsts 
-                                     (l, (1, convORDERED_REWR termOrder th)) net
-                    else return $! netEnter lconsts 
-                                     (l, (1, convREWR th)) net
+                     then return $! netEnter lconsts (l, (1, ORD_REWR th)) net
+                     else return $! netEnter lconsts (l, (1, REWR th)) net
       (Comb (Comb _ t) (l := r)) ->
             if rep && l `freeIn` r
-            then return $! netEnter lconsts 
-                   (l, (3, Conv $ \ x -> do th' <- ruleDISCH t =<< 
-                                                     ruleEQT_INTRO =<< 
-                                                       ruleUNDISCH th
-                                            runConv (convIMP_REWR th') x)) net
+            then return $! netEnter lconsts (l, (3, IMP_REWR (Just t) th)) net
             else do cond1 <- matchable l r
                     cond2 <- matchable r l
                     if rep && cond1 && cond2
-                      then return $! netEnter lconsts 
-                             (l, (3, convORDERED_IMP_REWR termOrder th)) net
-                      else return $! netEnter lconsts 
-                                     (l, (3, convIMP_REWR th)) net
+                       then return $! netEnter lconsts 
+                                        (l, (3, ORD_IMP_REWR th)) net
+                       else return $! netEnter lconsts 
+                                        (l, (3, IMP_REWR Nothing th)) net
       _ -> Nothing
-  where convBASEABS :: HOLTerm -> HOLThm -> Conversion cls thry
-        convBASEABS v thm = Conv $ \ tm ->
-            case tm of
-              (Abs y (Comb t y')) ->
-                  if y == y' && not (y `freeIn` t)
-                  then do t' <- liftO $ termMatch [] v t
-                          ruleINSTANTIATE t' thm
-                  else fail "convREWR (axETA special case)"
-              _ -> fail "convREWR (axETA special case)"
 
 -- create a net for a gconversion using "defunctionalized" conversions
 -- safe conversion of phantom variables, as guarded by context
@@ -251,9 +289,7 @@ netOfConv :: Ord a => HOLTerm -> a -> Net (Int, a) -> (Net (Int, a))
 netOfConv tm conv net = 
     netEnter [] (tm, (2, conv)) net
 
-netOfCong :: BoolCtxt thry => HOLThm 
-          -> Net (GConversion cls thry) 
-          -> Maybe (Net (GConversion cls thry))
+netOfCong :: HOLThm -> Net GConversion -> Maybe (Net GConversion)
 netOfCong th sofar = 
     do (pat, n) <- do (conc, n) <- repeatM (\ (tm, m) -> 
                                             case destImp tm of
@@ -263,10 +299,7 @@ netOfCong th sofar =
                          then Nothing
                          else do pat <- lHand conc
                                  return (pat, n)
-       return $! netEnter [] (pat, (4, convBASE n th)) sofar
-  where convBASE :: BoolCtxt thry => Int -> HOLThm -> Conversion cls thry
-        convBASE n thm = Conv $ \ tm ->
-            ruleGEN_PART_MATCH (lHand <=< funpowM n rand) thm tm
+       return $! netEnter [] (pat, (4, CONG n th)) sofar
 
 -- rewrite maker
 convIMP_CONJ :: BoolCtxt thry => Conversion cls thry
@@ -328,11 +361,10 @@ mkRewrites cf pth ths =
     do th <- toHThm pth
        split_rewrites (hyp th) cf th ths
 
-convREWRITES :: BoolCtxt thry => Net (GConversion cls thry) 
-             -> Conversion cls thry
+convREWRITES :: BoolCtxt thry => Net GConversion -> Conversion cls thry
 convREWRITES net = Conv $ \ tm ->
     let pconvs = netLookup tm net in
-      tryFind (\ (_, cnv) -> runConv cnv tm) pconvs
+      tryFind (\ (_, cnv) -> runConv (unCConv cnv) tm) pconvs
       <?> "convREWRITES"
 
 -- provers
@@ -357,7 +389,7 @@ applyProver :: Prover cls thry -> HOLTerm -> HOL cls thry HOLThm
 applyProver (Prover conv _ ) = runConv conv
 
 -- simpsets
-data Simpset cls thry = Simpset (Net (GConversion cls thry))
+data Simpset cls thry = Simpset (Net GConversion)
                         (Strategy cls thry -> Strategy cls thry)
                         [Prover cls thry]
                         (HOLThm -> [HOLThm] -> HOL cls thry [HOLThm])
@@ -382,8 +414,7 @@ ssOfThms thms (Simpset net prover provers rewmaker) =
        net' <- liftO $ foldrM (netOfThm True) net cthms
        return $! Simpset net' prover provers rewmaker
 
-ssOfConv :: HOLTerm -> Conversion cls thry -> Simpset cls thry 
-         -> Simpset cls thry
+ssOfConv :: HOLTerm -> CConv -> Simpset cls thry -> Simpset cls thry
 ssOfConv keytm conv (Simpset net prover provers rewmaker) =
     Simpset (netOfConv keytm conv net) prover provers rewmaker
 
@@ -420,12 +451,12 @@ ruleAUGMENT_SIMPSET pth (Simpset net prover provers rewmaker) =
 
 -- sqconvs
 convIMP_REWRITES :: BoolCtxt thry => Strategy cls thry
-                 -> Simpset cls thry
-                 -> Int -> [GConversion cls thry] -> Conversion cls thry
+                 -> Simpset cls thry -> Int -> [GConversion] 
+                 -> Conversion cls thry
 convIMP_REWRITES strat ss@(Simpset _ prover _ _) lev pconvs = Conv $ \ tm ->
     tryFind (\ (n, cnv) -> 
              if n >= 4 then fail "fail"
-             else do th <- runConv cnv tm
+             else do th <- runConv (unCConv cnv) tm
                      let etm = concl th
                      if isEq etm 
                         then return th
@@ -437,12 +468,11 @@ convIMP_REWRITES strat ss@(Simpset _ prover _ _) lev pconvs = Conv $ \ tm ->
                                     _ -> fail "") pconvs
 
 convGEN_SUB :: BoolCtxt thry => Strategy cls thry
-            -> Simpset cls thry -> Int
-            -> [GConversion cls thry] 
+            -> Simpset cls thry -> Int -> [GConversion] 
             -> Conversion cls thry
 convGEN_SUB strat ss lev pconvs = Conv $ \ tm ->
     tryFind (\ (n, cnv) -> if n < 4 then fail "fail"
-                           else do th <- runConv cnv tm
+                           else do th <- runConv (unCConv cnv) tm
                                    cRUN_SUB_CONV strat ss lev True th) pconvs
     <|> (case tm of
             (Comb l r) -> (do th1 <- runConv (strat ss lev) l
@@ -559,56 +589,49 @@ basicRewrites =
        closeAcidStateHOL acid
        return ths
 
-setBasicConvs :: BoolCtxt thry => [(Text, (HOLTerm, (String, [String])))] 
+setBasicConvs :: BoolCtxt thry => [(Text, (HOLTerm, (String, String)))] 
               -> HOL Theory thry ()
 setBasicConvs cnvs =
     do acid <- openLocalStateHOL (BasicConvs [])
-       updateHOL acid (PutConvs cnvs)
+       updateHOL acid . PutConvs $ 
+         map (\ (x, (tm, (c, m))) -> (x, (tm, HINT c m))) cnvs
        createCheckpointAndCloseHOL acid
        rehashConvnet
 
 extendBasicConvs :: (BoolCtxt thry, HOLTermRep tm Theory thry) 
-                 => (Text, (tm, (String, [String]))) -> HOL Theory thry ()
-extendBasicConvs (name, (ptm, conv)) = 
+                 => (Text, (tm, (String, String))) -> HOL Theory thry ()
+extendBasicConvs (name, (ptm, (c, m))) = 
     do tm <- toHTm ptm
        acid <- openLocalStateHOL (BasicConvs [])
-       updateHOL acid (AddConv (name, (tm, conv)))
+       updateHOL acid (AddConv (name, (tm, HINT c m)))
        createCheckpointAndCloseHOL acid
        rehashConvnet
 
--- Interpreted code must be of type HOL Proof thry, so we need to
--- generalize it when we recall it.
-mkConvGeneral :: Conversion Proof thry -> Conversion cls thry
-mkConvGeneral cnv = Conv $ \ tm ->
-    mkProofGeneral $ runConv cnv tm
-
 basicConvs :: Typeable thry 
-           => HOL cls thry [(Text, (HOLTerm, Conversion cls thry))]
+           => HOL cls thry [(Text, (HOLTerm, CConv))]
 basicConvs =
     do acid <- openLocalStateHOL (BasicConvs [])
        convs <- queryHOL acid GetConvs
        closeAcidStateHOL acid
-       return $! map (\ (x, (y, (m, mods))) -> (x, (y, mkConvGeneral . 
-                        Conv $ \ tm -> 
-                          do cnv <- runHOLHint m ("HaskHOL.Lib.Equal":mods)
-                             runConv cnv tm))) convs
+       return convs
 
-basicNet :: BoolCtxt thry => HOL cls thry (Net (GConversion cls thry))
+basicNet :: BoolCtxt thry => HOL cls thry (Net GConversion)
 basicNet =
-    do net <- readHOLRef conversionNet
-       case net of
-         Just net' -> return net'
-         Nothing -> do rehashConvnet
-                       basicNet
+    do acid <- openLocalStateHOL (ConversionNet netEmpty)
+       net <- queryHOL acid GetNet
+       closeAcidStateHOL acid
+       return net
 
-rehashConvnet :: BoolCtxt thry => HOL cls thry ()
+rehashConvnet :: BoolCtxt thry => HOL Theory thry ()
 rehashConvnet =
   do putStrLnHOL "Rehashing Conversion net..."
      rewrites <- basicRewrites
      cnvs <- liftM (map snd) basicConvs
      let convs = foldr (uncurry netOfConv) netEmpty cnvs
      net <- liftO $ foldrM (netOfThm True) convs rewrites
-     writeHOLRef conversionNet (Just net)
+     acid <- openLocalStateHOL (ConversionNet netEmpty)
+     updateHOL acid (PutNet net)
+     createCheckpointAndCloseHOL acid
 
 -- default congruences
 data Congruences = Congruences ![HOLThm] deriving Typeable
@@ -654,7 +677,7 @@ basicCongs =
 -- main rewriting conversions
 convGENERAL_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => Bool 
                     -> (Conversion cls thry -> Conversion cls thry) 
-                    -> Net (GConversion cls thry) -> [thm] 
+                    -> Net GConversion -> [thm] 
                     -> Conversion cls thry
 convGENERAL_REWRITE f c n pths = Conv $ \ tm ->
     do pths' <- mapM toHThm pths
@@ -662,7 +685,7 @@ convGENERAL_REWRITE f c n pths = Conv $ \ tm ->
 
 convGENERAL_REWRITE' :: BoolCtxt thry => Bool 
                      -> (Conversion cls thry -> Conversion cls thry) 
-                     -> Net (GConversion cls thry) -> [HOLThm] 
+                     -> Net GConversion -> [HOLThm] 
                      -> Conversion cls thry
 convGENERAL_REWRITE' rep cnvl builtin_net ths = Conv $ \ tm ->
     do ths_canon <- foldrM (mkRewrites False) [] ths
@@ -768,7 +791,7 @@ tacGEN_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) =>
 tacGEN_REWRITE cnvl thl = tacCONV (convGEN_REWRITE cnvl thl)
 
 tacLESS_GEN_REWRITE :: BoolCtxt thry => [HOLThm] 
-                    -> [(HOLTerm, Conversion cls thry)] 
+                    -> [(HOLTerm, CConv)] 
                     -> Tactic cls thry
 tacLESS_GEN_REWRITE rewrites cnvs g =
     let convs = foldr (uncurry netOfConv) netEmpty cnvs in
