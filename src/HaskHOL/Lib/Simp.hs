@@ -624,8 +624,7 @@ basicNet =
 
 rehashConvnet :: BoolCtxt thry => HOL Theory thry ()
 rehashConvnet =
-  do putStrLnHOL "Rehashing Conversion net..."
-     rewrites <- basicRewrites
+  do rewrites <- basicRewrites
      cnvs <- liftM (map snd) basicConvs
      let convs = foldr (uncurry netOfConv) netEmpty cnvs
      net <- liftO $ foldrM (netOfThm True) convs rewrites
