@@ -27,29 +27,19 @@ library
       HaskHOL.Deductive
       HaskHOL.Lib.Equal
       HaskHOL.Lib.Bool
-      HaskHOL.Lib.Bool.Context
       HaskHOL.Lib.DRule
       HaskHOL.Lib.Tactics
       HaskHOL.Lib.Itab
       HaskHOL.Lib.Simp
       HaskHOL.Lib.Theorems
-      HaskHOL.Lib.Theorems.Context
       HaskHOL.Lib.IndDefs
-      HaskHOL.Lib.IndDefs.Context 
       HaskHOL.Lib.Classic
-      HaskHOL.Lib.Classic.A.Context
-      HaskHOL.Lib.Classic.B.Context
-      HaskHOL.Lib.Classic.C.Context
-      HaskHOL.Lib.Classic.Context
       HaskHOL.Lib.Trivia
-      HaskHOL.Lib.Trivia.A.Context
-      HaskHOL.Lib.Trivia.Context
       HaskHOL.Lib.Canon
       HaskHOL.Lib.Meson
       HaskHOL.Lib.Quot
       HaskHOL.Lib.Misc
       HaskHOL.Lib.TypeQuant
-      HaskHOL.Lib.TypeQuant.Context
 
     exposed: True
     buildable: True
@@ -57,22 +47,26 @@ library
 
     other-modules:
       HaskHOL.Lib.Bool.Base
+      HaskHOL.Lib.Bool.Context
+      HaskHOL.Lib.Bool.PQ
       HaskHOL.Lib.Theorems.Base
+      HaskHOL.Lib.Theorems.Context
+      HaskHOL.Lib.Theorems.PQ
       HaskHOL.Lib.IndDefs.Base
-      HaskHOL.Lib.Classic.A
-      HaskHOL.Lib.Classic.A.Base
-      HaskHOL.Lib.Classic.B
-      HaskHOL.Lib.Classic.B.Base
-      HaskHOL.Lib.Classic.C
-      HaskHOL.Lib.Classic.C.Base
+      HaskHOL.Lib.IndDefs.Context
+      HaskHOL.Lib.IndDefs.PQ
       HaskHOL.Lib.Classic.Base
-      HaskHOL.Lib.Trivia.A
-      HaskHOL.Lib.Trivia.A.Base
+      HaskHOL.Lib.Classic.Context
+      HaskHOL.Lib.Classic.PQ
       HaskHOL.Lib.Trivia.Base
+      HaskHOL.Lib.Trivia.Context
+      HaskHOL.Lib.Trivia.PQ
+      HaskHOL.Lib.TypeQuant.Context
+      HaskHOL.Lib.Trivia.PQ
              
-    ghc-prof-options: -O2 -funbox-strict-fields -Wall -fprof-cafs -fprof-auto 
-                      -rtsopts
-    ghc-options: -O2 -funbox-strict-fields -Wall
+    ghc-prof-options: -O2 -funbox-strict-fields -Wall -fprof-auto
+                      -fno-warn-redundant-constraints 
+    ghc-options: -O2 -funbox-strict-fields -Wall -fno-warn-redundant-constraints
 
 source-repository head
   type: git 

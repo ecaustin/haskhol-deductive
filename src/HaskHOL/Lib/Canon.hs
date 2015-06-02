@@ -91,7 +91,7 @@ pthNots =
            tacREWRITE [thmCONJ_ASSOC, thmEQ_SYM_EQ])
 
 pthNotForall :: TriviaCtxt thry => HOL cls thry HOLThm
-pthNotForall = pthNots !! 0
+pthNotForall = head pthNots
 
 pthNotExists :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotExists = pthNots !! 1
@@ -717,7 +717,7 @@ nnfDConv cf baseconvs tm@(Comb q@(Const "?" (TyApp f1 (TyApp f2 (ty : _) : _))) 
                             return (th1, th2))
         <?> "nnfDConv: exists case"
     | otherwise = nnfDConvBase baseconvs tm
-nnfDConv cf baseconvs tm@( Comb ( Const "?!" ( TyApp f1 (( TyApp f2 (ty : _)) : _))) bod@( Abs x t))
+nnfDConv cf baseconvs tm@( Comb ( Const "?!" ( TyApp f1 (TyApp f2 (ty : _) : _))) bod@( Abs x t))
     | f1 == tyOpFun && f2 == tyOpFun =
         let y = variant (x : frees t) x in
           (do pth1 <- pthExu

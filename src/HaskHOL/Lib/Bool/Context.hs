@@ -1,4 +1,4 @@
-{-# LANGUAGE DataKinds, EmptyDataDecls, UndecidableInstances #-}
+{-# LANGUAGE DataKinds, EmptyDataDecls, TypeOperators, UndecidableInstances #-}
 {-|
   Module:    HaskHOL.Lib.Bool.Context
   Copyright: (c) The University of Kansas 2013
@@ -19,20 +19,32 @@ module HaskHOL.Lib.Bool.Context
     , BoolThry
     , BoolCtxt
     , ctxtBool
-    , bool
     ) where
 
 import HaskHOL.Core
 
 import HaskHOL.Lib.Bool.Base
 
-{- $ThryCtxt
-  See 'templateTypes', 'extendCtxt', and 'templateProvers' in the 
-  "HaskHOL.Core.Ext" module for more information about these types and values.
--}
+-- New Theory Type and Constraint
+data BoolThry
+type instance BoolThry == BoolThry = 'True
 
-templateTypes ctxtBase "Bool"
+instance CtxtName BoolThry where
+    ctxtName _ = "BoolCtxt"
 
+type instance PolyTheory BoolType b = BoolCtxt b
+
+type family BoolCtxt a :: Constraint where
+    BoolCtxt a = (Typeable a, BaseCtxt a, BoolContext a ~ 'True)
+
+-- Assert Theory Hierarchy
+type BoolType = ExtThry BoolThry BaseThry
+
+type family BoolContext a :: Bool where
+    BoolContext BaseThry = 'False
+    BoolContext (ExtThry a b) = BoolContext b || (a == BoolThry)   
+
+-- Build Context
 ctxtBool :: TheoryPath BoolType
 ctxtBool = extendTheory ctxtBase $(thisModule') $
     do parseAsPrefix "~"
@@ -57,11 +69,3 @@ ctxtBool = extendTheory ctxtBase $(thisModule') $
                  , defTY_EXISTS'
                  ]
 
-templateProvers 'ctxtBool
-
--- have to manually write this, for now
--- we bake in ctxtname and typeable to clean stuff up later
-type family BoolCtxt a :: Constraint where
-    BoolCtxt a = (Typeable a, BaseCtxt a, BoolContext a ~ 'True)
-
-type instance PolyTheory BoolType b = BoolCtxt b

@@ -90,6 +90,7 @@ module HaskHOL.Lib.Tactics
     , composeInsts
     ) where
 
+import Prelude hiding ((<$>))
 import HaskHOL.Core hiding (empty)
 
 import HaskHOL.Lib.Bool
@@ -131,7 +132,7 @@ data GoalState cls thry =
 instance ShowHOL cls thry (GoalState cls thry) where
     showHOL = liftM show . ppGoalState 1
     showHOLList [] = return "Empty goalstack"
-    showHOLList (gs:[]) = showHOL gs
+    showHOLList [gs] = showHOL gs
     showHOLList (gs@(GS _ g _):GS _ g0 _:_) =
         let p = length g - length g0
             p' = if p < 1 then 1 else p + 1 in
@@ -353,7 +354,7 @@ tacCHANGED tac g =
        if meta /= nullMeta 
           then return gstate
           else case gl of
-                 (g':[])
+                 [g']
                      | g' == g -> fail "tacCHANGED"
                      | otherwise -> return gstate
                  _ -> return gstate
@@ -596,7 +597,7 @@ tacUNDISCH t = liftM1 tacUNDISCH' (toHTm t)
                                            return . GS nullMeta [Goal asl' tm'] $ just thm) <?> "tacUNDISCH"
               Nothing -> fail "tacUNDISCH"
         
-        just thm i (th:[]) = ruleMP th =<< ruleINSTANTIATE_ALL i thm
+        just thm i [th] = ruleMP th =<< ruleINSTANTIATE_ALL i thm
         just _ _ _ = fail "tacUNDISCH: bad justification"
 
 tacSPEC :: (BoolCtxt thry, HOLTermRep tm1 cls thry,
@@ -606,7 +607,7 @@ tacSPEC (pt, px) (Goal asl w) =
        t <- toHTm pt
        tm' <- (mkForall x #<< subst [(t, x)] w) <?> "tacSPEC"
        return $! GS nullMeta [Goal asl tm'] justification
-    where justification i (th:[]) = 
+    where justification i [th] = 
               do t <- toHTm pt
                  ruleSPEC (instantiate i t) th
           justification _ _ = fail "tacSPEC: bad justification"

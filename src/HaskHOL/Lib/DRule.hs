@@ -658,20 +658,25 @@ getDefinitions =
     do TheDefinitions defs <- ask
        return $! mapElems defs
 
-getADefinition :: Text -> Query TheDefinitions (Maybe HOLThm)
-getADefinition name =
+getADefinition' :: Text -> Query TheDefinitions (Maybe HOLThm)
+getADefinition' name =
     do (TheDefinitions defs) <- ask
        return $! name `mapLookup` defs
 
 makeAcidic ''TheDefinitions 
-    ['insertDefinition, 'getDefinitions, 'getADefinition]
+    ['insertDefinition, 'getDefinitions, 'getADefinition']
+
+getADefinition :: Text -> HOL cls thry (Maybe HOLThm)
+getADefinition lbl = 
+    do acid <- openLocalStateHOL (TheDefinitions mapEmpty)
+       qth <- queryHOL acid (GetADefinition' lbl)
+       closeAcidStateHOL acid
+       return qth
 
 newDefinition :: (BoolCtxt thry, HOLTermRep tm Theory thry) => Text -> tm 
               -> HOL Theory thry HOLThm
 newDefinition lbl ptm =
-    do acid <- openLocalStateHOL (TheDefinitions mapEmpty)
-       qth <- queryHOL acid (GetADefinition lbl)
-       closeAcidStateHOL acid
+    do qth <- getADefinition lbl
        case qth of
          Just th ->
              return th
@@ -708,8 +713,6 @@ newDefinition lbl ptm =
 
 getDefinition :: Text -> HOL cls thry HOLThm
 getDefinition lbl =
-    do acid <- openLocalStateHOL (TheDefinitions mapEmpty)
-       qth <- queryHOL acid (GetADefinition lbl)
-       closeAcidStateHOL acid
+    do qth <- getADefinition lbl
        liftMaybe ("getDefinition: definition for " ++ show lbl ++ 
                   " not found.") qth

@@ -285,9 +285,8 @@ netOfThm rep th net =
 
 -- create a net for a gconversion using "defunctionalized" conversions
 -- safe conversion of phantom variables, as guarded by context
-netOfConv :: Ord a => HOLTerm -> a -> Net (Int, a) -> (Net (Int, a))
-netOfConv tm conv net = 
-    netEnter [] (tm, (2, conv)) net
+netOfConv :: Ord a => HOLTerm -> a -> Net (Int, a) -> Net (Int, a)
+netOfConv tm conv = netEnter [] (tm, (2, conv))
 
 netOfCong :: HOLThm -> Net GConversion -> Maybe (Net GConversion)
 netOfCong th sofar = 

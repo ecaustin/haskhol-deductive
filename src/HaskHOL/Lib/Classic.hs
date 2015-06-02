@@ -16,7 +16,7 @@ module HaskHOL.Lib.Classic
     , convETA
     , thmEQ_EXT
     , thmFUN_EQ
-    , isSelect -- select operator
+    , isSelect
     , destSelect
     , mkSelect
     , axSELECT
@@ -26,9 +26,8 @@ module HaskHOL.Lib.Classic
     , thmSELECT_REFL
     , thmSELECT_UNIQUE
     , thmEXCLUDED_MIDDLE
-    , tTAUT_TAC
+    , tacTAUT
     , ruleTAUT
-    , thmBOOL_CASES_AX
     , tacBOOL_CASES
     , tacASM_CASES
     , thmNOT_EXISTS
@@ -77,16 +76,116 @@ import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Theorems
 
--- B Module defines the rules needed for the second rewrite rule.
--- Notably this is TAUT_TAC and rTAUT.
-import HaskHOL.Lib.Classic.B
-import HaskHOL.Lib.Classic.C
-
--- Defines the finalized classic context with all parser extensions,
--- rewrites, axioms, and other jazz.
 import HaskHOL.Lib.Classic.Base
 import HaskHOL.Lib.Classic.Context
+import HaskHOL.Lib.Classic.PQ
 
+-- | @!t:A->B. (\x. t x) = t@
+axETA :: ClassicCtxt thry => HOL cls thry HOLThm
+axETA = cacheProof "axETA" ctxtClassic $ getAxiom "axETA"
+
+-- | @!P (x:A). P x ==> P((@) P)@
+axSELECT :: ClassicCtxt thry => HOL cls thry HOLThm
+axSELECT = cacheProof "axSELECT" ctxtClassic $ getAxiom "axSELECT"
+
+{-| 
+   @COND = \t t1 t2. @x:A. ((t <=> T) ==> (x = t1)) /\ ((t <=> F) ==> (x = t2))@
+-}
+defCOND :: ClassicCtxt thry => HOL cls thry HOLThm
+defCOND = cacheProof "defCOND" ctxtClassic $ getDefinition "COND"
+
+thmEQ_EXT :: ClassicCtxt thry => HOL cls thry HOLThm
+thmEQ_EXT = cacheProof "thmEQ_EXT" ctxtClassic  thmEQ_EXT'
+
+thmEXISTS :: ClassicCtxt thry => HOL cls thry HOLThm
+thmEXISTS = cacheProof "thmEXISTS" ctxtClassic thmEXISTS'
+
+convSELECT :: ClassicCtxt thry => Conversion cls thry
+convSELECT = convSELECT' convSELECT_pth
+    where convSELECT_pth :: ClassicCtxt thry => HOL cls thry HOLThm
+          convSELECT_pth = 
+              cacheProof "convSELECT_pth" ctxtClassic convSELECT_pth'
+
+thmSELECT_REFL :: ClassicCtxt thry => HOL cls thry HOLThm
+thmSELECT_REFL = cacheProof "thmSELECT_REFL" ctxtClassic thmSELECT_REFL'
+
+-- Stage2
+thmEXCLUDED_MIDDLE :: ClassicCtxt thry => HOL cls thry HOLThm
+thmEXCLUDED_MIDDLE = 
+    cacheProof "thmEXCLUDED_MIDDLE" ctxtClassic thmEXCLUDED_MIDDLE'
+             
+
+-- basic selection operator rule
+ruleSELECT :: (ClassicCtxt thry, HOLThmRep thm cls thry) 
+           => thm -> HOL cls thry HOLThm
+ruleSELECT pthm = 
+    do p <- serve [bool| P:A->bool |]
+       th <- toHThm pthm
+       pth <- ruleSELECT_pth
+       case rand $ concl th of
+         Just lam@(Abs (Var _ ty) _) -> 
+             ruleCONV convBETA =<< 
+               ruleMP (fromJust $ rulePINST [(tyA, ty)] [(p, lam)] pth) th
+         _ -> fail "ruleSELECT"
+  where ruleSELECT_pth :: ClassicCtxt thry => HOL cls thry HOLThm
+        ruleSELECT_pth = cacheProof "ruleSELECT_pth" ctxtClassic $
+            prove "(?) (P:A->bool) ==> P((@) P)" $
+              tacSIMP [axSELECT, axETA]
+
+-- classically based tactics
+tacBOOL_CASES :: (ClassicCtxt thry, HOLTermRep tm cls thry) => tm 
+              -> Tactic cls thry
+tacBOOL_CASES = tacBOOL_CASES' thmBOOL_CASES_AX
+  where thmBOOL_CASES_AX :: ClassicCtxt thry => HOL cls thry HOLThm
+        thmBOOL_CASES_AX = 
+            cacheProof "thmBOOL_CASES_AX" ctxtClassic thmBOOL_CASES_AX'
+
+tacASM_CASES :: (ClassicCtxt thry, HOLTermRep tm cls thry) => tm 
+             -> Tactic cls thry
+tacASM_CASES t g = 
+    do th <- ruleSPEC t thmEXCLUDED_MIDDLE
+       tacDISJ_CASES th g
+
+-- tautology checker for classical logic
+tacTAUT :: ClassicCtxt thry => Tactic cls thry
+tacTAUT = tacTAUT' tacBOOL_CASES
+
+ruleTAUT :: (HOLTermRep tm cls thry, ClassicCtxt thry) => tm 
+         -> HOL cls thry HOLThm
+ruleTAUT tm = prove tm tacTAUT
+
+thmNOT_CLAUSES :: ClassicCtxt thry => HOL cls thry HOLThm
+thmNOT_CLAUSES = cacheProof "thmNOT_CLAUSES" ctxtClassic $
+    ruleTAUT [str| (!t. ~ ~t <=> t) /\ (~T <=> F) /\ (~F <=> T) |]
+
+thmNOT_IMP :: ClassicCtxt thry => HOL cls thry HOLThm
+thmNOT_IMP = cacheProof "thmNOT_IMP" ctxtClassic $
+    ruleTAUT [str| !t1 t2. ~(t1 ==> t2) <=> t1 /\ ~t2 |]
+
+thmCOND_CLAUSES :: ClassicCtxt thry => HOL cls thry HOLThm
+thmCOND_CLAUSES = cacheProof "thmCOND_CLAUSES" ctxtClassic thmCOND_CLAUSES'
+
+-- Stage 3
+
+thmMONO_COND :: ClassicCtxt thry => HOL cls thry HOLThm
+thmMONO_COND = cacheProof "thmMONO_COND" ctxtClassic thmMONO_COND'
+
+
+thmCOND_CONG :: ClassicCtxt thry => HOL cls thry HOLThm
+thmCOND_CONG = cacheProof "thmCOND_CONG" ctxtClassic thmCOND_CONG'
+       
+thmCOND_EQ_CLAUSE :: ClassicCtxt thry => HOL cls thry HOLThm
+thmCOND_EQ_CLAUSE = 
+    cacheProof "thmCOND_EQ_CLAUSE" ctxtClassic thmCOND_EQ_CLAUSE'
+
+inductBool :: ClassicCtxt thry => HOL cls thry HOLThm
+inductBool = cacheProof "inductBool" ctxtClassic inductBool
+
+recursionBool :: ClassicCtxt thry => HOL cls thry HOLThm
+recursionBool = cacheProof "recursionBool" ctxtClassic recursionBool
+
+
+-- Base
 
 thmDE_MORGAN :: ClassicCtxt thry => HOL cls thry HOLThm
 thmDE_MORGAN = cacheProof "thmDE_MORGAN" ctxtClassic $
@@ -282,7 +381,7 @@ getTypeDef :: Text -> Query TypeDefs (Maybe HOLThm)
 getTypeDef name =
     do (TypeDefs defs) <- ask
        case mapLookup name defs of
-         Just (_, (_, th)) -> return $! Just th
+         Just (_, (_, th)) -> return (Just th)
          Nothing -> return Nothing
 
 addTypeDef :: Text -> ((Text, Text), (HOLThm, HOLThm)) 
@@ -329,7 +428,7 @@ getTypeDefinition tyname =
        liftMaybe "getTypeDefinition: type name not found." th
 
 ruleSEL :: ClassicCtxt thry => HOLThm -> HOL cls thry HOLThm
-ruleSEL th = ruleCONV (convRATOR (convREWR thmEXISTS) `_THEN` convBETA) th
+ruleSEL = ruleCONV (convRATOR (convREWR thmEXISTS) `_THEN` convBETA)
 
 checkDistinct :: Eq a => [a] -> Bool
 checkDistinct l =
@@ -364,7 +463,7 @@ getASpecification :: [Text] -> Query Specifications (Maybe HOLThm)
 getASpecification names =
     do (Specifications specs) <- ask
        case find (\ ((names', _), _) -> names' == names) specs of
-         Just (_, th) -> return $! Just th
+         Just (_, th) -> return (Just th)
          Nothing -> return Nothing
 
 addSpecification :: [Text] -> HOLThm -> HOLThm -> Update Specifications ()

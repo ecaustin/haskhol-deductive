@@ -36,6 +36,7 @@ import HaskHOL.Lib.Tactics
 
 import HaskHOL.Lib.IndDefs.Base
 import HaskHOL.Lib.IndDefs.Context
+import HaskHOL.Lib.IndDefs.PQ
 
 
 strip_ncomb :: Int -> HOLTerm -> Maybe (HOLTerm, [HOLTerm])
@@ -347,8 +348,8 @@ tacBackChain thm (Goal asl w) =
          case destImp $ concl th1 of
            Just (ant, _) -> return . GS nullMeta [Goal asl ant] $ just th1
            _ -> fail "tacBackChain"
-    where just th i (t:[]) = do th' <- ruleINSTANTIATE i th
-                                ruleMATCH_MP th' t
+    where just th i [t] = do th' <- ruleINSTANTIATE i th
+                             ruleMATCH_MP th' t
           just _ _ _ = fail "tacBackChain: bad justification"
 
 tacMonoAbs :: IndDefsCtxt thry => Tactic cls thry
@@ -465,7 +466,7 @@ makeDefinitions :: BoolCtxt thry => HOLThm -> HOL Theory thry HOLThm
 makeDefinitions thm =
     let defs = filter isEq $ hyp thm in
       do dths <- mapM (\ x -> case x of
-                                ((Var name _) := _) -> newDefinition name x
+                                (Var name _ := _) -> newDefinition name x
                                 _ -> fail "makeDefinitions") defs
          let insts = zip (fromJust $ mapM lhs defs)
                          (fromJust $ mapM (lhs . concl) dths)

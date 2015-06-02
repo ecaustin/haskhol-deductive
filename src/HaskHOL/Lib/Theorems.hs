@@ -74,6 +74,7 @@ import HaskHOL.Lib.Tactics
 
 import HaskHOL.Lib.Theorems.Base
 import HaskHOL.Lib.Theorems.Context
+import HaskHOL.Lib.Theorems.PQ
 
 thmEQ_IMP :: TheoremsCtxt thry => HOL cls thry HOLThm
 thmEQ_IMP = cacheProof "thmEQ_IMP" ctxtTheorems $

@@ -35,6 +35,7 @@ import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Misc
 
 import HaskHOL.Lib.TypeQuant.Context
+import HaskHOL.Lib.TypeQuant.PQ
 
 -- Equality Rules
 convALPHA_TY :: HOLType -> Conversion cls thry

@@ -509,7 +509,7 @@ mergeInst (t, x) current =
       (t', x) : current
 
 finishRule :: TriviaCtxt thry => HOLThm -> HOL cls thry HOLThm
-finishRule thm = ruleGEN_REWRITE id [finishRule_pth1, finishRule_pth2]  thm
+finishRule = ruleGEN_REWRITE id [finishRule_pth1, finishRule_pth2]
   where finishRule_pth1 :: TriviaCtxt thry => HOL cls thry HOLThm
         finishRule_pth1 = cacheProof "finishRule_pth1" ctxtTrivia $
             ruleTAUT "(~p ==> p) <=> p"
@@ -527,7 +527,7 @@ convImpElim = convREWR convImpElim_pth
             ruleTAUT [str| (a ==> b) <=> ~a \/ b |]
 
 ruleEqElim :: TriviaCtxt thry => HOLThm -> HOL cls thry HOLThm
-ruleEqElim thm = ruleMATCH_MP ruleEqElim_pth thm
+ruleEqElim = ruleMATCH_MP ruleEqElim_pth
   where ruleEqElim_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         ruleEqElim_pth = cacheProof "ruleEqElim_pth" ctxtTrivia $
             ruleTAUT [str| (a <=> b) ==> b \/ ~a |]
@@ -850,7 +850,8 @@ tacPURE_MESON ref minVal maxVal inc goal =
 
       expandGoals :: BoolCtxt thry => [Rule] -> Int -> ([(FOLAtom, [Rule])], Tup) -> DeCont -> HOL cls thry (FOLGoal, Tup)
       expandGoals _ _ ([], tup) cont = deCont cont ([], tup)
-      expandGoals rules depth (g:[], tup) cont = expandGoalRec rules depth (g, tup) $ Base cont
+      expandGoals rules depth ([g], tup) cont = 
+          expandGoalRec rules depth (g, tup) $ Base cont
       expandGoals rules depth (gl@(g:gs), tup@(insts, offset, size)) cont =
           do dcutin <- liftM cutIn $ readHOLRef ref
              skew <- mesonSkew

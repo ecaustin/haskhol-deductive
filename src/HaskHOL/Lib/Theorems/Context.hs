@@ -1,11 +1,9 @@
-{-# LANGUAGE DataKinds, EmptyDataDecls, FlexibleInstances, TypeSynonymInstances,
-             UndecidableInstances #-}
+{-# LANGUAGE DataKinds, EmptyDataDecls, TypeOperators, UndecidableInstances #-}
 module HaskHOL.Lib.Theorems.Context
     ( TheoremsType
     , TheoremsThry
     , TheoremsCtxt
     , ctxtTheorems
-    , theorems
     ) where
 
 import HaskHOL.Core
@@ -14,7 +12,24 @@ import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Bool.Context
 import HaskHOL.Lib.Theorems.Base
 
-templateTypes ctxtBool "Theorems"
+-- New Theory Type and Constraint
+data TheoremsThry
+type instance TheoremsThry == TheoremsThry = 'True
+
+instance CtxtName TheoremsThry where
+    ctxtName _ = "TheoremsCtxt"
+
+type instance PolyTheory TheoremsType b = TheoremsCtxt b
+
+type family TheoremsCtxt a :: Constraint where
+    TheoremsCtxt a = (Typeable a, BoolCtxt a, TheoremsContext a ~ 'True)
+
+-- Assert Theory Hierarchy
+type TheoremsType = ExtThry TheoremsThry BoolType
+
+type family TheoremsContext a :: Bool where
+    TheoremsContext BaseThry = 'False
+    TheoremsContext (ExtThry a b) = TheoremsContext b || (a == TheoremsThry) 
 
 ctxtTheorems :: TheoryPath TheoremsType
 ctxtTheorems = extendTheory ctxtBool $(thisModule') $
@@ -30,11 +45,3 @@ ctxtTheorems = extendTheory ctxtBool $(thisModule') $
                                         , thmIMP_EQ_CLAUSE
                                         ]
        extendBasicCongs =<< sequence [ thmBASIC_CONG ]
-
-templateProvers 'ctxtTheorems
-
--- have to manually write this, for now
-type family TheoremsCtxt a :: Constraint where
-    TheoremsCtxt a = (BoolCtxt a, TheoremsContext a ~ 'True)
-
-type instance PolyTheory TheoremsType b = TheoremsCtxt b

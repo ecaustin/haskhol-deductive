@@ -87,6 +87,7 @@ import HaskHOL.Core
 import HaskHOL.Lib.Equal
 
 import HaskHOL.Lib.Bool.Context
+import HaskHOL.Lib.Bool.PQ
 
 
 --allows easy instantiation for pro forma theorems
@@ -710,7 +711,7 @@ ruleGEN :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) => tm
 ruleGEN tm thm = liftM1 ruleGEN' (toHTm tm) =<< toHThm thm
   where ruleGEN' :: BoolCtxt thry => HOLTerm -> HOLThm -> HOL cls thry HOLThm
         ruleGEN' x@(Var _ tyx) th = noteHOL "ruleGEN" $
-            do qth <- liftM (primINST_TYPE [(tyA, tyx)]) $ ruleGEN_pth
+            do qth <- liftM (primINST_TYPE [(tyA, tyx)]) ruleGEN_pth
                let ptm = fromJust $ rand =<< rand (concl qth)
                th1 <- ruleEQT_INTRO th
                th2 <- liftO (primABS x th1) <?> 
