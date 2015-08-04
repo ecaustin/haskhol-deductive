@@ -62,11 +62,12 @@ library
       HaskHOL.Lib.Trivia.Context
       HaskHOL.Lib.Trivia.PQ
       HaskHOL.Lib.TypeQuant.Context
+      HaskHOL.Lib.TypeQuant.PQ
       HaskHOL.Lib.Trivia.PQ
              
     ghc-prof-options: -O2 -funbox-strict-fields -Wall -fprof-auto
-                      -fno-warn-redundant-constraints 
-    ghc-options: -O2 -funbox-strict-fields -Wall -fno-warn-redundant-constraints
+                      -fno-warn-duplicate-constraints 
+    ghc-options: -O2 -funbox-strict-fields -Wall -fno-warn-duplicate-constraints
 
 source-repository head
   type: git 
