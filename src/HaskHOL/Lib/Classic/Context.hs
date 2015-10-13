@@ -8,6 +8,7 @@ module HaskHOL.Lib.Classic.Context
 
 import HaskHOL.Core
 
+import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Simp
 import HaskHOL.Lib.IndDefs
 
@@ -38,22 +39,17 @@ ctxtClassic = extendTheory ctxtIndDefs $(thisModule') $
 -- stage1
     do parseAsBinder "@"
        newConstant "@" "(A->bool)->A"
-       sequence_ [axETA', axSELECT']
-       void defCOND'
+       mapM_ newAxiom 
+         [ ("axETA", [str| !t:A->B. (\x. t x) = t |])
+         , ("axSELECT", "!P (x:A). P x ==> P((@) P)")
+         ]
+       void $ newDefinition 
+         ("COND", [str| COND = \t t1 t2. @x:A. ((t <=> T) ==> (x = t1)) /\ 
+                                         ((t <=> F) ==> (x = t2)) |])
 -- stage2
-       rewr1 <- thmSELECT_REFL'
-       extendBasicRewrites [rewr1]
+       extendBasicRewrites [thmSELECT_REFL, thmNOT_CLAUSE, thmCOND_CLAUSES]
 -- stage3
-       rewr2 <- thmNOT_CLAUSE'
-       rewr3 <- thmCOND_CLAUSES'
-       extendBasicRewrites [rewr2, rewr3]
--- stage4
-       mthm <- thmMONO_COND'
-       addMonoThm mthm
-       cth <- thmCOND_CONG'
-       extendBasicCongs [cth]
-       rth <- thmCOND_EQ_CLAUSE'
-       extendBasicRewrites [rth]
-       boolTh1 <- inductBool'
-       boolTh2 <- recursionBool'
-       addIndDefs [("bool", (2, boolTh1, boolTh2))]
+       addMonoThm thmMONO_COND
+       extendBasicCongs [thmCOND_CONG]
+       extendBasicRewrites [thmCOND_EQ_CLAUSE]
+       addIndDef ("bool", (2, inductBool, recursionBool))

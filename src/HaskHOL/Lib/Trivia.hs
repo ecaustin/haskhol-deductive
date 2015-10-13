@@ -26,9 +26,8 @@ import HaskHOL.Core
 import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Tactics
-import HaskHOL.Lib.Classic
 
-import HaskHOL.Lib.Trivia.Base
+import qualified HaskHOL.Lib.Trivia.Base as Base
 import HaskHOL.Lib.Trivia.Context
 import HaskHOL.Lib.Trivia.PQ
 
@@ -39,19 +38,19 @@ defI :: TriviaCtxt thry => HOL cls thry HOLThm
 defI = cacheProof "defI" ctxtTrivia $ getDefinition "I"
 
 tyDef1 :: TriviaCtxt thry => HOL cls thry HOLThm
-tyDef1 = cacheProof "ty1" ctxtTrivia $ getTypeDefinition "1"
+tyDef1 = Base.tyDef1
 
 def_one :: TriviaCtxt thry => HOL cls thry HOLThm
 def_one = cacheProof "def_one" ctxtTrivia $ getDefinition "one"
 
 thm_one :: TriviaCtxt thry => HOL cls thry HOLThm
-thm_one = cacheProof "thm_one" ctxtTrivia thm_one'
+thm_one = Base.thm_one
 
 induct_one :: TriviaCtxt thry => HOL cls thry HOLThm
-induct_one = cacheProof "induct_one" ctxtTrivia induct_one'
+induct_one = Base.induct_one
 
 recursion_one :: TriviaCtxt thry => HOL cls thry HOLThm
-recursion_one = cacheProof "recursion_one" ctxtTrivia recursion_one'
+recursion_one = Base.recursion_one
 
 thmI :: TriviaCtxt thry => HOL cls thry HOLThm
 thmI = cacheProof "thmI" ctxtTrivia $

@@ -33,15 +33,15 @@ type family TheoremsContext a :: Bool where
 
 ctxtTheorems :: TheoryPath TheoremsType
 ctxtTheorems = extendTheory ctxtBool $(thisModule') $
-    do extendBasicRewrites =<< sequence [ thmREFL_CLAUSE
-                                        , thmEQ_CLAUSES
-                                        , thmNOT_CLAUSES_WEAK
-                                        , thmAND_CLAUSES
-                                        , thmOR_CLAUSES
-                                        , thmIMP_CLAUSES
-                                        , thmFORALL_SIMP
-                                        , thmEXISTS_SIMP
-                                        , thmBETA
-                                        , thmIMP_EQ_CLAUSE
-                                        ]
-       extendBasicCongs =<< sequence [ thmBASIC_CONG ]
+    do extendBasicRewrites [ thmREFL_CLAUSE
+                           , thmEQ_CLAUSES
+                           , thmNOT_CLAUSES_WEAK
+                           , thmAND_CLAUSES
+                           , thmOR_CLAUSES
+                           , thmIMP_CLAUSES
+                           , thmFORALL_SIMP
+                           , thmEXISTS_SIMP
+                           , thmBETA
+                           , thmIMP_EQ_CLAUSE
+                           ]
+       extendBasicCongs [ thmBASIC_CONG ]

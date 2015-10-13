@@ -466,7 +466,7 @@ makeDefinitions :: BoolCtxt thry => HOLThm -> HOL Theory thry HOLThm
 makeDefinitions thm =
     let defs = filter isEq $ hyp thm in
       do dths <- mapM (\ x -> case x of
-                                (Var name _ := _) -> newDefinition name x
+                                (Var name _ := _) -> newDefinition (name, x)
                                 _ -> fail "makeDefinitions") defs
          let insts = zip (fromJust $ mapM lhs defs)
                          (fromJust $ mapM (lhs . concl) dths)

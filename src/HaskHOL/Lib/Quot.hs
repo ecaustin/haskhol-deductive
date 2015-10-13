@@ -162,7 +162,8 @@ liftFunction ptybij2 prefl_th ptrans_th fname pwth =
                                                                  lookup le $ zip rvs evs)) hyps
                             rdef <- fromRightM $ listMkAbs newargs def
                             let ldef = mkVar fname $ typeOf rdef
-                            dth <- newDefinition fname =<< mkEq ldef rdef
+                            edef <- mkEq ldef rdef
+                            dth <- newDefinition (fname, edef)
                             eth <- foldlM (\ th v -> ruleCONV (convRAND convBETA) =<<
                                                   fromRightM (ruleAP_THM th v)) dth newargs
                             targs <- fromRightM $ mapM (mkComb mk <=< mkComb eqv) rvs

@@ -8,7 +8,9 @@ module HaskHOL.Lib.Trivia.Context
 
 import HaskHOL.Core
 
+import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Classic
+
 import HaskHOL.Lib.Classic.Context
 import HaskHOL.Lib.Trivia.Base
 
@@ -35,10 +37,11 @@ ctxtTrivia :: TheoryPath TriviaType
 ctxtTrivia = extendTheory ctxtClassic ($thisModule') $
 -- Stage 1
     do parseAsInfix ("o", (26, "right"))
-       sequence_ [defO', defI']
-       void tyDefOne'
-       void defONE'
+       mapM_ newDefinition
+         [ ("o", [str| (o) (f:B->C) g = \x:A. f(g(x)) |])
+         , ("I", [str| I = \x:A. x |])
+         ]
+       void $ newTypeDefinition "1" "one_ABS" "one_REP" thmEXISTS_ONE_REP
+       void $ newDefinition ("one", "one = @x:1. T")
 -- Stage 2
-       iTh <- induct_one'
-       rTh <- recursion_one'
-       addIndDefs [("1", (1, iTh, rTh))]
+       addIndDef ("1", (1, induct_one, recursion_one))

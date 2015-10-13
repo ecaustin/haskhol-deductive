@@ -38,8 +38,8 @@ import HaskHOL.Lib.Equal
 mkThm :: BoolCtxt thry => [HOLTerm] -> HOLTerm -> HOL Theory thry HOLThm
 mkThm asl c =
     do n <- tickTermCounter 
-       ax <- newAxiom ("mkThm" `append` textShow n) =<< 
-               foldrM mkImp c (reverse asl)
+       thm <- foldrM mkImp c (reverse asl)
+       ax <- newAxiom ("mkThm" `append` textShow n, thm)
        foldlM (\ th t -> ruleMP th #<< primASSUME t) ax $ reverse asl
 
 {-|@
@@ -673,9 +673,9 @@ getADefinition lbl =
        closeAcidStateHOL acid
        return qth
 
-newDefinition :: (BoolCtxt thry, HOLTermRep tm Theory thry) => Text -> tm 
-              -> HOL Theory thry HOLThm
-newDefinition lbl ptm =
+newDefinition :: (BoolCtxt thry, HOLTermRep tm Theory thry) 
+              => (Text, tm) -> HOL Theory thry HOLThm
+newDefinition (lbl, ptm) =
     do qth <- getADefinition lbl
        case qth of
          Just th ->
@@ -694,7 +694,7 @@ newDefinition lbl ptm =
                       do rtm <- liftEither ("newDefinition: Non-variable " ++
                                   "in LHS pattern.") $ listMkAbs largs r
                          def <- mkEq lv rtm
-                         thm1 <- newBasicDefinition lbl def
+                         thm1 <- newBasicDefinition (lbl, def)
                          thm2 <- foldlM (\ thm t -> 
                                    do ithm <- fromRightM $ ruleAP_THM thm t
                                       ithm' <- fromJustM . rand $ concl ithm

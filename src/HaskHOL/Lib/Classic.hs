@@ -52,8 +52,8 @@ module HaskHOL.Lib.Classic
     , thmUNIQUE_SKOLEM_ALT
     , newTypeDefinition
     , getTypeDefinition
-    , addIndDefs
-    , getIndDefs
+    , Base.addIndDef
+    , Base.getIndDefs
     , newSpecification
     , getSpecification
     , thmMONO_COND
@@ -76,43 +76,38 @@ import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Theorems
 
-import HaskHOL.Lib.Classic.Base
+import qualified HaskHOL.Lib.Classic.Base as Base
 import HaskHOL.Lib.Classic.Context
 import HaskHOL.Lib.Classic.PQ
 
 -- | @!t:A->B. (\x. t x) = t@
 axETA :: ClassicCtxt thry => HOL cls thry HOLThm
-axETA = cacheProof "axETA" ctxtClassic $ getAxiom "axETA"
+axETA = Base.axETA
 
 -- | @!P (x:A). P x ==> P((@) P)@
 axSELECT :: ClassicCtxt thry => HOL cls thry HOLThm
-axSELECT = cacheProof "axSELECT" ctxtClassic $ getAxiom "axSELECT"
+axSELECT = Base.axSELECT
 
 {-| 
    @COND = \t t1 t2. @x:A. ((t <=> T) ==> (x = t1)) /\ ((t <=> F) ==> (x = t2))@
 -}
 defCOND :: ClassicCtxt thry => HOL cls thry HOLThm
-defCOND = cacheProof "defCOND" ctxtClassic $ getDefinition "COND"
+defCOND = Base.defCOND
 
 thmEQ_EXT :: ClassicCtxt thry => HOL cls thry HOLThm
-thmEQ_EXT = cacheProof "thmEQ_EXT" ctxtClassic  thmEQ_EXT'
+thmEQ_EXT = Base.thmEQ_EXT
 
 thmEXISTS :: ClassicCtxt thry => HOL cls thry HOLThm
-thmEXISTS = cacheProof "thmEXISTS" ctxtClassic thmEXISTS'
+thmEXISTS = Base.thmEXISTS
 
 convSELECT :: ClassicCtxt thry => Conversion cls thry
-convSELECT = convSELECT' convSELECT_pth
-    where convSELECT_pth :: ClassicCtxt thry => HOL cls thry HOLThm
-          convSELECT_pth = 
-              cacheProof "convSELECT_pth" ctxtClassic convSELECT_pth'
+convSELECT = Base.convSELECT
 
 thmSELECT_REFL :: ClassicCtxt thry => HOL cls thry HOLThm
-thmSELECT_REFL = cacheProof "thmSELECT_REFL" ctxtClassic thmSELECT_REFL'
+thmSELECT_REFL = Base.thmSELECT_REFL
 
--- Stage2
 thmEXCLUDED_MIDDLE :: ClassicCtxt thry => HOL cls thry HOLThm
-thmEXCLUDED_MIDDLE = 
-    cacheProof "thmEXCLUDED_MIDDLE" ctxtClassic thmEXCLUDED_MIDDLE'
+thmEXCLUDED_MIDDLE = Base.thmEXCLUDED_MIDDLE
              
 
 -- basic selection operator rule
@@ -135,10 +130,7 @@ ruleSELECT pthm =
 -- classically based tactics
 tacBOOL_CASES :: (ClassicCtxt thry, HOLTermRep tm cls thry) => tm 
               -> Tactic cls thry
-tacBOOL_CASES = tacBOOL_CASES' thmBOOL_CASES_AX
-  where thmBOOL_CASES_AX :: ClassicCtxt thry => HOL cls thry HOLThm
-        thmBOOL_CASES_AX = 
-            cacheProof "thmBOOL_CASES_AX" ctxtClassic thmBOOL_CASES_AX'
+tacBOOL_CASES = Base.tacBOOL_CASES
 
 tacASM_CASES :: (ClassicCtxt thry, HOLTermRep tm cls thry) => tm 
              -> Tactic cls thry
@@ -148,7 +140,7 @@ tacASM_CASES t g =
 
 -- tautology checker for classical logic
 tacTAUT :: ClassicCtxt thry => Tactic cls thry
-tacTAUT = tacTAUT' tacBOOL_CASES
+tacTAUT = Base.tacTAUT
 
 ruleTAUT :: (HOLTermRep tm cls thry, ClassicCtxt thry) => tm 
          -> HOL cls thry HOLThm
@@ -163,29 +155,23 @@ thmNOT_IMP = cacheProof "thmNOT_IMP" ctxtClassic $
     ruleTAUT [str| !t1 t2. ~(t1 ==> t2) <=> t1 /\ ~t2 |]
 
 thmCOND_CLAUSES :: ClassicCtxt thry => HOL cls thry HOLThm
-thmCOND_CLAUSES = cacheProof "thmCOND_CLAUSES" ctxtClassic thmCOND_CLAUSES'
-
--- Stage 3
+thmCOND_CLAUSES = Base.thmCOND_CLAUSES
 
 thmMONO_COND :: ClassicCtxt thry => HOL cls thry HOLThm
-thmMONO_COND = cacheProof "thmMONO_COND" ctxtClassic thmMONO_COND'
+thmMONO_COND = Base.thmMONO_COND
 
 
 thmCOND_CONG :: ClassicCtxt thry => HOL cls thry HOLThm
-thmCOND_CONG = cacheProof "thmCOND_CONG" ctxtClassic thmCOND_CONG'
+thmCOND_CONG = Base.thmCOND_CONG
        
 thmCOND_EQ_CLAUSE :: ClassicCtxt thry => HOL cls thry HOLThm
-thmCOND_EQ_CLAUSE = 
-    cacheProof "thmCOND_EQ_CLAUSE" ctxtClassic thmCOND_EQ_CLAUSE'
+thmCOND_EQ_CLAUSE = Base.thmCOND_EQ_CLAUSE
 
 inductBool :: ClassicCtxt thry => HOL cls thry HOLThm
-inductBool = cacheProof "inductBool" ctxtClassic inductBool
+inductBool = Base.inductBool
 
 recursionBool :: ClassicCtxt thry => HOL cls thry HOLThm
-recursionBool = cacheProof "recursionBool" ctxtClassic recursionBool
-
-
--- Base
+recursionBool = Base.recursionBool
 
 thmDE_MORGAN :: ClassicCtxt thry => HOL cls thry HOLThm
 thmDE_MORGAN = cacheProof "thmDE_MORGAN" ctxtClassic $
@@ -444,7 +430,8 @@ specify th name =
        case concl th1 of
          (Comb l r) -> 
              let ty = typeOf r in
-               do th2 <- newDefinition name =<< mkEq (mkVar name ty) r
+               do def <- mkEq (mkVar name ty) r
+                  th2 <- newDefinition (name, def) 
                   th3 <- fromRightM $ ruleSYM th2
                   ruleCONV convBETA #<< flip primEQ_MP th1 =<< ruleAP_TERM l th3
          _ -> fail "specify"

@@ -367,7 +367,6 @@ convREWRITES net = Conv $ \ tm ->
       <?> "convREWRITES"
 
 -- provers
--- provers
 data Prover cls thry = 
     Prover (Conversion cls thry) ([HOLThm] -> Prover cls thry)
 
@@ -555,7 +554,7 @@ putRewrites ths =
 addRewrites :: [HOLThm] -> Update Rewrites ()
 addRewrites ths =
     do (Rewrites xs) <- get
-       put (Rewrites (ths++xs))
+       put (Rewrites (ths ++ xs))
 
 getRewrites :: Query Rewrites [HOLThm]
 getRewrites =
@@ -565,7 +564,8 @@ getRewrites =
 makeAcidic ''Rewrites ['putRewrites, 'addRewrites, 'getRewrites]
 
 
-setBasicRewrites :: BoolCtxt thry => [HOLThm] -> HOL Theory thry ()
+setBasicRewrites :: (BoolCtxt thry, HOLThmRep thm Theory thry) 
+                 => [thm] -> HOL Theory thry ()
 setBasicRewrites thl =
     do canonThl <- foldrM (mkRewrites False) [] thl
        acid <- openLocalStateHOL (Rewrites [])
@@ -573,13 +573,16 @@ setBasicRewrites thl =
        createCheckpointAndCloseHOL acid
        rehashConvnet
 
-extendBasicRewrites :: BoolCtxt thry => [HOLThm] -> HOL Theory thry ()
-extendBasicRewrites thl = 
-    do canonThl <- foldrM (mkRewrites False) [] thl
+extendBasicRewrites :: (BoolCtxt thry, HOLThmRep thm Theory thry) 
+                    => [thm] -> HOL Theory thry ()
+extendBasicRewrites [] = return ()
+extendBasicRewrites (th:ths) = 
+    do canonThs <- mkRewrites False th []
        acid <- openLocalStateHOL (Rewrites [])
-       updateHOL acid (AddRewrites canonThl)
+       updateHOL acid (AddRewrites canonThs)
        createCheckpointAndCloseHOL acid
        rehashConvnet
+       extendBasicRewrites ths
 
 basicRewrites :: HOL cls thry [HOLThm]
 basicRewrites =
@@ -588,26 +591,29 @@ basicRewrites =
        closeAcidStateHOL acid
        return ths
 
-setBasicConvs :: BoolCtxt thry => [(Text, (HOLTerm, (String, String)))] 
-              -> HOL Theory thry ()
+setBasicConvs :: (BoolCtxt thry, HOLTermRep tm Theory thry) 
+              => [(Text, (tm, String))] -> HOL Theory thry ()
 setBasicConvs cnvs =
     do acid <- openLocalStateHOL (BasicConvs [])
-       updateHOL acid . PutConvs $ 
-         map (\ (x, (tm, (c, m))) -> (x, (tm, HINT c m))) cnvs
+       cnvs' <- mapM (\ (x, (tm, m)) -> 
+                         do tm' <- toHTm tm
+                            return (x, (tm', HINT (unpack x) m))) cnvs
+       updateHOL acid $ PutConvs cnvs'
        createCheckpointAndCloseHOL acid
        rehashConvnet
 
 extendBasicConvs :: (BoolCtxt thry, HOLTermRep tm Theory thry) 
-                 => (Text, (tm, (String, String))) -> HOL Theory thry ()
-extendBasicConvs (name, (ptm, (c, m))) = 
+                 => [(Text, (tm, String))] -> HOL Theory thry ()
+extendBasicConvs [] = return ()
+extendBasicConvs ((name, (ptm, m)):cnvs) = 
     do tm <- toHTm ptm
        acid <- openLocalStateHOL (BasicConvs [])
-       updateHOL acid (AddConv (name, (tm, HINT c m)))
+       updateHOL acid (AddConv (name, (tm, HINT (unpack name) m)))
        createCheckpointAndCloseHOL acid
        rehashConvnet
+       extendBasicConvs cnvs
 
-basicConvs :: Typeable thry 
-           => HOL cls thry [(Text, (HOLTerm, CConv))]
+basicConvs :: Typeable thry => HOL cls thry [(Text, (HOLTerm, CConv))]
 basicConvs =
     do acid <- openLocalStateHOL (BasicConvs [])
        convs <- queryHOL acid GetConvs
@@ -640,30 +646,33 @@ putCongruences :: [HOLThm] -> Update Congruences ()
 putCongruences ths =
     put (Congruences ths)
 
-addCongruences :: [HOLThm] -> Update Congruences ()
-addCongruences ths =
+addCongruence :: HOLThm -> Update Congruences ()
+addCongruence th =
     do (Congruences xs) <- get
-       put (Congruences (ths `union` xs))
+       put (Congruences (th `insert` xs))
 
 getCongruences :: Query Congruences [HOLThm]
 getCongruences =
     do (Congruences xs) <- ask
        return xs
 
-makeAcidic ''Congruences ['putCongruences, 'addCongruences, 'getCongruences]
+makeAcidic ''Congruences ['putCongruences, 'addCongruence, 'getCongruences]
 
-
-setBasicCongs :: [HOLThm] -> HOL Theory thry ()
-setBasicCongs thl =
-    do acid <- openLocalStateHOL (Congruences [])
+setBasicCongs :: HOLThmRep thm Theory thry => [thm] -> HOL Theory thry ()
+setBasicCongs pthl =
+    do thl <- mapM toHThm pthl
+       acid <- openLocalStateHOL (Congruences [])
        updateHOL acid (PutCongruences thl)
        createCheckpointAndCloseHOL acid
 
-extendBasicCongs :: [HOLThm] -> HOL Theory thry ()
-extendBasicCongs thl = 
-    do acid <- openLocalStateHOL (Congruences [])
-       updateHOL acid (AddCongruences thl)
+extendBasicCongs :: HOLThmRep thm Theory thry => [thm] -> HOL Theory thry ()
+extendBasicCongs [] = return ()
+extendBasicCongs (th:ths) = 
+    do th' <- toHThm th
+       acid <- openLocalStateHOL (Congruences [])
+       updateHOL acid (AddCongruence th')
        createCheckpointAndCloseHOL acid
+       extendBasicCongs ths
 
 basicCongs :: HOL cls thry [HOLThm]
 basicCongs =

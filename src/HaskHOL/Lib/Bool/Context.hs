@@ -23,8 +23,6 @@ module HaskHOL.Lib.Bool.Context
 
 import HaskHOL.Core
 
-import HaskHOL.Lib.Bool.Base
-
 -- New Theory Type and Constraint
 data BoolThry
 type instance BoolThry == BoolThry = 'True
@@ -55,17 +53,19 @@ ctxtBool = extendTheory ctxtBase $(thisModule') $
        mapM_ parseAsBinder ["!", "?", "?!"]
        mapM_ parseAsTyBinder ["!!", "??"]
        overrideInterface "<=>" [str| (=):bool->bool->bool |]
-       sequence_ [ defT'
-                 , defAND'
-                 , defIMP'
-                 , defFORALL'
-                 , defEXISTS'
-                 , defOR'
-                 , defFALSE'
-                 , def_FALSITY_'
-                 , defNOT'
-                 , defEXISTS_UNIQUE'
-                 , defTY_FORALL'
-                 , defTY_EXISTS'
-                 ]
-
+       mapM_ newBasicDefinition
+         [ ("T", [str| T = ((\ p:bool . p) = (\ p:bool . p)) |])
+         , ("/\\", [str| (/\) = \ p q . (\ f:bool->bool->bool . f p q) = 
+                                        (\ f . f T T) |])
+         , ("==>", [str| (==>) = \ p q . p /\ q <=> p |])
+         , ("!", [str| (!) = \ P:A->bool . P = \ x . T |])
+         , ("?", [str| (?) = \ P:A->bool . ! q . (! x . P x ==> q) ==> q |])
+         , ("\\/", [str| (\/) = \ p q . ! r . (p ==> r) ==> (q ==> r)  ==> r |])
+         , ("F", [str| F = ! p:bool . p |])
+         , ("_FALSITY_", [str| _FALSITY_ = F |])
+         , ("~", [str| (~) = \ p . p ==> F |])
+         , ("?!", [str| (?!) = \ P:A->bool. ((?) P) /\ 
+                                            (!x y. P x /\ P y ==> x = y) |])
+         , ("!!", [str| (!!) = \ P : (% 'A. bool). P = (\\ 'A. T) |])
+         , ("??", [str| (??) = \ P : (% 'A. bool). ~(P = (\\ 'A . F)) |])
+         ]

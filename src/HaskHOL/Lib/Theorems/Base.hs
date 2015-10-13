@@ -7,7 +7,6 @@ import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Itab
 import HaskHOL.Lib.Simp
 
-
 -- basic rewrites
 thmEQ_CLAUSES :: BoolCtxt thry => HOL cls thry HOLThm
 thmEQ_CLAUSES = cacheProof "thmEQ_CLAUSES" ctxtBool $
