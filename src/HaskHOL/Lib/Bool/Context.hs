@@ -52,20 +52,20 @@ ctxtBool = extendTheory ctxtBase $(thisModule') $
                           , ("<=>", (2, "right")) ]
        mapM_ parseAsBinder ["!", "?", "?!"]
        mapM_ parseAsTyBinder ["!!", "??"]
-       overrideInterface "<=>" [str| (=):bool->bool->bool |]
+       overrideInterface "<=>" [txt| (=):bool->bool->bool |]
        mapM_ newBasicDefinition
-         [ ("T", [str| T = ((\ p:bool . p) = (\ p:bool . p)) |])
-         , ("/\\", [str| (/\) = \ p q . (\ f:bool->bool->bool . f p q) = 
+         [ ("T", [txt| T = ((\ p:bool . p) = (\ p:bool . p)) |])
+         , ("/\\", [txt| (/\) = \ p q . (\ f:bool->bool->bool . f p q) = 
                                         (\ f . f T T) |])
-         , ("==>", [str| (==>) = \ p q . p /\ q <=> p |])
-         , ("!", [str| (!) = \ P:A->bool . P = \ x . T |])
-         , ("?", [str| (?) = \ P:A->bool . ! q . (! x . P x ==> q) ==> q |])
-         , ("\\/", [str| (\/) = \ p q . ! r . (p ==> r) ==> (q ==> r)  ==> r |])
-         , ("F", [str| F = ! p:bool . p |])
-         , ("_FALSITY_", [str| _FALSITY_ = F |])
-         , ("~", [str| (~) = \ p . p ==> F |])
-         , ("?!", [str| (?!) = \ P:A->bool. ((?) P) /\ 
+         , ("==>", [txt| (==>) = \ p q . p /\ q <=> p |])
+         , ("!", [txt| (!) = \ P:A->bool . P = \ x . T |])
+         , ("?", [txt| (?) = \ P:A->bool . ! q . (! x . P x ==> q) ==> q |])
+         , ("\\/", [txt| (\/) = \ p q . ! r . (p ==> r) ==> (q ==> r)  ==> r |])
+         , ("F", [txt| F = ! p:bool . p |])
+         , ("_FALSITY_", [txt| _FALSITY_ = F |])
+         , ("~", [txt| (~) = \ p . p ==> F |])
+         , ("?!", [txt| (?!) = \ P:A->bool. ((?) P) /\ 
                                             (!x y. P x /\ P y ==> x = y) |])
-         , ("!!", [str| (!!) = \ P : (% 'A. bool). P = (\\ 'A. T) |])
-         , ("??", [str| (??) = \ P : (% 'A. bool). ~(P = (\\ 'A . F)) |])
+         , ("!!", [txt| (!!) = \ P : (% 'A. bool). P = (\\ 'A. T) |])
+         , ("??", [txt| (??) = \ P : (% 'A. bool). ~(P = (\\ 'A . F)) |])
          ]

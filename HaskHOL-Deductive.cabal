@@ -15,9 +15,9 @@ homepage:      http://haskhol.org
 
 library
     default-language:  Haskell2010
-    default-extensions: ConstraintKinds, DeriveDataTypeable, OverloadedStrings,
-                        PatternSynonyms, QuasiQuotes, TemplateHaskell, 
-                        TypeFamilies
+    default-extensions: ConstraintKinds, DeriveDataTypeable, FlexibleContexts,
+                        OverloadedStrings, PatternSynonyms, QuasiQuotes, 
+                        TemplateHaskell, TypeFamilies
     build-depends:   base >= 4.7
                    , template-haskell >= 2.9
                    , wl-pprint-text >= 1.1
@@ -65,9 +65,7 @@ library
       HaskHOL.Lib.Trivia.PQ
              
     ghc-prof-options: -O2 -funbox-strict-fields -Wall -fprof-auto
-                      -fno-warn-duplicate-constraints 
-    ghc-options: -O2 -funbox-strict-fields -Wall -fno-warn-duplicate-constraints
-
+    ghc-options: -O2 -funbox-strict-fields -Wall
 source-repository head
   type: git 
   location: git://github.com/ecaustin/haskhol-deductive.git

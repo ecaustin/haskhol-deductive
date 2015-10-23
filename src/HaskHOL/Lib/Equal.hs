@@ -1,5 +1,4 @@
-{-# LANGUAGE PatternSynonyms, ScopedTypeVariables #-}
-
+{-# LANGUAGE GADTs, ScopedTypeVariables #-}
 {-|
   Module:    HaskHOL.Lib.Equal
   Copyright: (c) The University of Kansas 2013
@@ -28,6 +27,7 @@ module HaskHOL.Lib.Equal
     , ruleMK_BINOP 
       -- * Conversions
     , Conversion(..)
+    , runConv
        -- ** Subterm Conversions
     , convRATOR 
     , convRAND
@@ -78,24 +78,16 @@ import HaskHOL.Core
   the composition of
  
   > rand <=< rator
-
-  Fails with 'Maybe' if the term is not a combination of adequate structure.
 -}
-lHand :: HOLTerm -> Maybe HOLTerm
+lHand :: MonadThrow m => HOLTerm -> m HOLTerm
 lHand = rand <=< rator
 
-{-|
-  Returns the left hand side of an equation.  Fails with 'Maybe' if the term
-  is not equational.
--}
-lhs :: HOLTerm -> Maybe HOLTerm
+-- | Returns the left hand side of an equation.
+lhs :: MonadThrow m => HOLTerm -> m HOLTerm
 lhs = liftM fst . destEq
 
-{-|
-  Returns the right hand side of an equation.  Fails with 'Maybe' if the term
-  is not equational.
--}
-rhs :: HOLTerm -> Maybe HOLTerm
+-- | Returns the right hand side of an equation.
+rhs :: MonadThrow m => HOLTerm -> m HOLTerm
 rhs = liftM snd . destEq
 
 -- Basic Constructors for Equality
@@ -111,9 +103,9 @@ mkPrimedVar :: [HOLTerm] -> HOLTerm -> HOL cls thry HOLTerm
 mkPrimedVar avoid (Var s ty) =
     do s' <- primedRec (mapFilter varName avoid) s
        return $! mkVar s' ty
-  where varName :: HOLTerm -> Maybe Text
-        varName (Var x _) = Just x
-        varName _ = Nothing
+  where varName :: HOLTerm -> Catch Text
+        varName (Var x _) = return x
+        varName _ = fail' "varName"
           
         primedRec :: [Text] -> Text -> HOL cls thry Text
         primedRec avd x
@@ -140,10 +132,10 @@ mkPrimedVar _ _ = fail "mkPrimedVar"
 
   * The type of the function term does not agree with theorem argument types.
 -}
-ruleAP_TERM :: HOLTerm -> HOLThm -> Either String HOLThm
+ruleAP_TERM :: (HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
+            => tm -> thm -> HOL cls thry HOLThm
 ruleAP_TERM tm thm =
-    primMK_COMB (primREFL tm) thm
-    <?> "ruleAP_TERM"
+    (primMK_COMB (primREFL tm) thm) <?> "ruleAP_TERM"
 
 {-|@
  A |- f = g   x
@@ -157,9 +149,10 @@ ruleAP_TERM tm thm =
   
   * The type of the argument term does not agree with theorem function types.
 -}
-ruleAP_THM :: HOLThm -> HOLTerm -> Either String HOLThm
+ruleAP_THM :: (HOLThmRep thm cls thry, HOLTermRep tm cls thry) 
+           => thm -> tm -> HOL cls thry HOLThm
 ruleAP_THM thm tm =
-    primMK_COMB thm (primREFL tm) <?> "ruleAP_THM"
+    (primMK_COMB thm $ primREFL tm) <?> "ruleAP_THM"
 
 {-|@
  A |- t1 = t2
@@ -169,15 +162,16 @@ ruleAP_THM thm tm =
 
   Fails with 'Left' if the theorem conclusion is not an equation.
 -}
-ruleSYM :: HOLThm -> Either String HOLThm
-ruleSYM thm@(Thm _ c) = 
-    do (l, _) <- note "ruleSYM: not an equation" $ destEq c
-       let lth = primREFL l
-           eqTm = fromJust $ rator =<< rator c
-       liftO $ do th1 <- ruleAP_TERM eqTm thm
-                  th2 <- primMK_COMB th1 lth
-                  primEQ_MP th2 lth
-ruleSYM _ = error "ruleSYM: exhaustive warning."
+ruleSYM :: HOLThmRep thm cls thry => thm -> HOL cls thry HOLThm
+ruleSYM pthm = note "ruleSYM" $
+    do thm <- toHThm pthm
+       case concl thm of
+         (Comb (Comb eqTm@TmEq{} l) _) ->
+           do lth <- primREFL l
+              th1 <- ruleAP_TERM eqTm thm
+              th2 <- primMK_COMB th1 lth
+              primEQ_MP th2 lth
+         _ -> fail' "conclusion not an equation."
 
 {-|@
   t1   t1'  
@@ -187,9 +181,10 @@ ruleSYM _ = error "ruleSYM: exhaustive warning."
 
   Fails with 'Left' if the terms are not alpha equivalent.
 -}
-ruleALPHA :: HOLTerm -> HOLTerm -> Either String HOLThm
+ruleALPHA :: (HOLTermRep tm1 cls thry, HOLTermRep tm2 cls thry) 
+          => tm1 -> tm2 -> HOL cls thry HOLThm
 ruleALPHA tm1 tm2 = 
-    primTRANS (primREFL tm1) (primREFL tm2) <?> "ruleALPHA"
+    (primTRANS (primREFL tm1) $ primREFL tm2) <?> "ruleALPHA"
 
 {-|@
  op   |- l1 = l2   |- r1 = r2       
@@ -199,10 +194,11 @@ ruleALPHA tm1 tm2 =
 
   Fails with 'Left' if the argument types of the two theorems do not agree.  
 -}
-ruleMK_BINOP :: HOLTerm -> HOLThm -> HOLThm -> Either String HOLThm
+ruleMK_BINOP :: (HOLTermRep tm cls thry, HOLThmRep thm1 cls thry,
+                 HOLThmRep thm2 cls thry) 
+             => tm -> thm1 -> thm2 -> HOL cls thry HOLThm
 ruleMK_BINOP op lthm rthm = 
-    liftM1 primMK_COMB (ruleAP_TERM op lthm) rthm
-    <?> "ruleMK_BINOP"
+    primMK_COMB (ruleAP_TERM op lthm) rthm <?> "ruleMK_BINOP"
 
 
  -- Conversions and combinator type classes
@@ -211,8 +207,13 @@ ruleMK_BINOP op lthm rthm =
   The 'Conversion' type is a special class of derived rules that accepts a
   term and returns a theorem proving its equation with an equivalent term.
 -}
-newtype Conversion cls thry = Conv { runConv :: HOLTerm -> HOL cls thry HOLThm }
+data Conversion cls thry where
+  Conv :: (HOLTerm -> HOL cls thry HOLThm) -> Conversion cls thry
   deriving Typeable
+
+runConv :: HOLTermRep tm cls thry 
+        => Conversion cls thry -> tm -> HOL cls thry HOLThm
+runConv (Conv cnv) = cnv <=< toHTm
 
 instance Eq (Conversion cls thry) where
     _ == _ = False
@@ -245,13 +246,13 @@ convNO :: Conversion cls thry
 convNO = convFAIL "convNO"
 
 convALL :: Conversion cls thry
-convALL = Conv $ \ tm -> return $! primREFL tm
+convALL = Conv $ \ tm -> primREFL tm
 
 convTHEN :: Conversion cls thry -> Conversion cls thry -> Conversion cls thry
 convTHEN c1 c2 = Conv $ \ tm ->
-    do th1@(Thm _ tm') <- runConv c1 tm
-       th2 <- runConv c2 #<< rand tm'
-       liftEither "convTHEN: bad sequence" $ primTRANS th1 th2
+    (do th1@(Thm _ tm') <- runConv c1 tm
+        th2 <- runConv c2 =<< rand tm'
+        primTRANS th1 th2) <?> "convTHEN"
 
 convORELSE :: Conversion cls thry -> Conversion cls thry -> Conversion cls thry
 convORELSE c1 c2 = Conv $ \ tm -> runConv c1 tm <|> runConv c2 tm
@@ -270,19 +271,18 @@ convREPEAT conv =
 
 -- fails if resultant equation has alpha-equivalent sides
 convCHANGED :: Conversion cls thry -> Conversion cls thry
-convCHANGED conv = Conv $ \ tm ->
+convCHANGED conv = Conv $ \ tm -> note "convCHANGED" $
     do th@(Thm _ tm') <- runConv conv tm
-       let (l, r) = fromJust $ destEq tm'
+       (l, r) <- destEq tm'
        if l `aConv` r 
-          then fail "convCHANGED: no change"
+          then fail' "no change"
           else return th
 
 convTRY :: Conversion cls thry -> Conversion cls thry
 convTRY conv = conv `_ORELSE` _ALL
 
 convNOTE :: String -> Conversion cls thry -> Conversion cls thry
-convNOTE err conv = Conv $ \ tm ->
-    noteHOL err $ runConv conv tm
+convNOTE err conv = Conv $ \ tm -> note err $ runConv conv tm
 
 -- subterm conversions
 
@@ -296,12 +296,11 @@ convNOTE err conv = Conv $ \ tm ->
   * The original conversion fails.
 -}
 convRATOR :: Conversion cls thry -> Conversion cls thry
-convRATOR conv = Conv $ \ tm -> 
+convRATOR conv = Conv $ \ tm -> note "convRATOR" $
     case tm of
        Comb l r -> 
-         do th <- runConv conv l <?> "convRATOR: conversion failed."
-            liftO $ ruleAP_THM th r
-       _ -> fail "convRATOR: not a combination"
+         (ruleAP_THM (runConv conv l) r) <?> "conversion failed."
+       _ -> fail' "not a combination"
 
 {-|
   The 'convRAND' conversional applies a given conversion to the operand of a
@@ -313,12 +312,11 @@ convRATOR conv = Conv $ \ tm ->
   * The original conversion fails.
 -}
 convRAND :: Conversion cls thry -> Conversion cls thry
-convRAND conv = Conv $ \ tm ->
+convRAND conv = Conv $ \ tm -> note "convRAND" $
     case tm of
        Comb l r -> 
-           do th <- runConv conv r <?> "convRAND: conversion failed."
-              liftO $ ruleAP_TERM l th
-       _ -> fail "convRAND: not a combination"
+         (ruleAP_TERM l $ runConv conv r) <?> "conversion failed."   
+       _ -> fail' "not a combination"
 
 {-|
   The 'convLAND' conversional applies a given conversion to the left hand side 
@@ -342,13 +340,13 @@ convLAND = _NOTE "convLAND" . convRATOR . convRAND
   * Either of the original conversions fail.
 -}
 convCOMB2 :: Conversion cls thry -> Conversion cls thry -> Conversion cls thry
-convCOMB2 lconv rconv = Conv $ \ tm -> 
+convCOMB2 lconv rconv = Conv $ \ tm -> note "convCOMB2" $
     case tm of
       Comb l r -> 
-         do lth <- runConv lconv l <?> "convCOMB2: left conversion failed."
-            rth <- runConv rconv r <?> "convCOMB2: right conversion failed."
-            liftO $ primMK_COMB lth rth
-      _ -> fail "convCOMB2: not a combination"
+         do lth <- runConv lconv l <?> "left conversion failed."
+            rth <- runConv rconv r <?> "right conversion failed."
+            primMK_COMB lth rth
+      _ -> fail' "not a combination"
 
 {-|
   The 'convCOMB' conversional applies a conversion to both the operator and 
@@ -375,15 +373,15 @@ convABS conv = Conv $ \ tm ->
     case tm of
       Abs v@(Var _ ty) bod ->
           do th <- runConv conv bod <?> "convABS: conversion failed."
-             liftO (primABS v th) <|> 
+             (primABS v th) <|> 
                do gv <- genVar ty
-                  gbod <- runConv conv #<< varSubst [(v, gv)] bod
-                  let gth = fromRight $ primABS gv gbod
-                      gtm = concl gth
+                  gbod <- runConv conv =<< varSubst [(v, gv)] bod
+                  gth <- primABS gv gbod
+                  let gtm = concl gth
                       v' = variant (frees gtm) v
-                      (l, r) = fromRight (pairMapM (alpha v') #<< destEq gtm)
+                  (l, r) <- pairMapM (alpha v') =<< destEq gtm
                   tm' <- mkEq l r
-                  liftO $ liftM1 primEQ_MP (ruleALPHA gtm tm') gth
+                  primEQ_MP (ruleALPHA gtm tm') gth
       _ -> fail "convABS: not an abstraction."
 
 {-|
@@ -396,12 +394,12 @@ convABS conv = Conv $ \ tm ->
   * The original conversion fails.
 -}
 convTYAPP :: Conversion cls thry -> Conversion cls thry
-convTYAPP conv = Conv $ \ tm ->
+convTYAPP conv = Conv $ \ tm -> note "convTYAPP" $
     case tm of
       TyComb t ty -> 
-          do th <- runConv conv t <?> "convTYAPP: conversion failed."
-             liftO $ primTYAPP ty th
-      _ -> fail "convTYAPP: not a type combination."
+          do th <- runConv conv t <?> "conversion failed."
+             primTYAPP ty th
+      _ -> fail' "not a type combination."
 
 {-|
   The 'convTYABS' conversional applies a given conversions to the body of a
@@ -414,20 +412,19 @@ convTYAPP conv = Conv $ \ tm ->
   * The original conversion fails.
 -}
 convTYABS :: Conversion cls thry -> Conversion cls thry
-convTYABS conv = Conv $ \ tm ->
+convTYABS conv = Conv $ \ tm -> note "convTYABS" $
     case tm of
       TyAbs tv t -> 
-          do th <- runConv conv t <?> "convTYABS: conversion failed."
-             liftO (primTYABS tv th) <|> 
+          do th <- runConv conv t <?> "conversion failed."
+             (primTYABS tv th) <|> 
                do gv <- genSmallTyVar
                   gbod <- runConv conv $ inst [(tv, gv)] t
-                  let gth = fromRight $ primTYABS gv gbod
-                      gtm = concl gth
+                  gth <- primTYABS gv gbod
+                  let gtm = concl gth
                       v' = variantTyVar (typeVarsInTerm gtm) tv
-                      (l, r) = fromRight (pairMapM (alphaTyabs v') #<< 
-                                            destEq gtm)
+                  (l, r) <- pairMapM (alphaTyabs v') =<< destEq gtm
                   tm' <- mkEq l r
-                  liftO $ liftM1 primEQ_MP (ruleALPHA gtm tm') gth
+                  primEQ_MP (ruleALPHA gtm tm') gth
       _ -> fail "convTYABS: not an abstraction."
 
 {-|
@@ -442,7 +439,7 @@ convTYABS conv = Conv $ \ tm ->
   * The original conversion fails.
 -}
 convBINDER :: Conversion cls thry -> Conversion cls thry
-convBINDER conv = Conv $ \ tm -> noteHOL "convBINDER" $
+convBINDER conv = Conv $ \ tm -> note "convBINDER" $
     case tm of
       Abs{} -> runConv (convABS conv) tm
       TyAbs{} -> runConv (convTYABS conv) tm
@@ -458,13 +455,13 @@ convBINDER conv = Conv $ \ tm -> noteHOL "convBINDER" $
   'convALL'.
 -}
 convSUB :: Conversion cls thry -> Conversion cls thry
-convSUB conv = Conv $ \ tm -> noteHOL "convSUB" $
+convSUB conv = Conv $ \ tm -> note "convSUB" $
     case tm of
       Comb{} -> runConv (convCOMB conv) tm
       Abs{}  -> runConv (convABS conv) tm
       TyComb{} -> runConv (convTYAPP conv) tm
       TyAbs{} -> runConv (convTYABS conv) tm
-      _ -> return $! primREFL tm
+      _ -> primREFL tm
 
 {-|
   The 'convBINOP' conversional applies a given conversion to both the left and 
@@ -479,15 +476,13 @@ convSUB conv = Conv $ \ tm -> noteHOL "convSUB" $
 
 -}
 convBINOP :: Conversion cls thry -> Conversion cls thry
-convBINOP conv = Conv $ \ tm ->
+convBINOP conv = Conv $ \ tm -> note "convBINOP" $
     case tm of
       (Comb (Comb op l) r) -> 
-          do lth <- runConv conv l <?> 
-                      "convBINOP: conversion failed on left sub-term."
-             rth <- runConv conv r <?>
-                      "convBINOP: conversion failed on right sub-term."
-             liftO $ liftM1 primMK_COMB (ruleAP_TERM op lth) rth
-      _-> fail "convBINOP: not a binary operator combination."
+          do lth <- runConv conv l <?> "conversion failed on left sub-term."
+             rth <- runConv conv r <?> "conversion failed on right sub-term."
+             primMK_COMB (ruleAP_TERM op lth) rth
+      _-> fail' "not a binary operator combination."
 
 -- Equality Conversions
 
@@ -500,10 +495,10 @@ convBINOP conv = Conv $ \ tm ->
 
   * Alpha conversion fails for the term this conversion is applied to.
 -}
-convALPHA :: HOLTerm -> Conversion cls thry
-convALPHA v@Var{} = Conv $ \ tm ->
-    liftEither "convALPHA" $ ruleALPHA tm =<< alpha v tm
-convALPHA _ = _FAIL "convALPHA: provided term not a variable."
+convALPHA :: HOLTermRep tm cls thry => tm -> Conversion cls thry
+convALPHA ptm = Conv $ \ tm ->
+    (do v <- toHTm ptm
+        ruleALPHA tm =<< alpha v tm) <?> "convALPHA"
 
 {-|
   The 'convTYALPHA' conversion converts the bound variable of type abstraction 
@@ -515,10 +510,10 @@ convALPHA _ = _FAIL "convALPHA: provided term not a variable."
 
   * Alpha conversion fails for the term this conversion is applied to.
 -}
-convTYALPHA :: HOLType -> Conversion cls thry
-convTYALPHA v@(TyVar True _) = Conv $ \ tm ->
-    liftEither "convTYALPHA" $ ruleALPHA tm =<< alphaTyabs v tm
-convTYALPHA _ = _FAIL "convTYALPHA: provided type not a small variable."
+convTYALPHA :: HOLTypeRep ty cls thry => ty -> Conversion cls thry
+convTYALPHA pty = Conv $ \ tm ->
+    (do v <- toHTy pty
+        ruleALPHA tm =<< alphaTyabs v tm) <?> "convTYALPHA"
 
 {-|
   The 'convGEN_ALPHA' conversion converts the bound variable of a term with a 
@@ -531,15 +526,14 @@ convTYALPHA _ = _FAIL "convTYALPHA: provided type not a small variable."
 
   * The term the conversion is applied to does not have a binder. 
 -}
-convGEN_ALPHA:: HOLTerm -> Conversion cls thry
-convGEN_ALPHA v@Var{} = Conv $ \ tm ->
+convGEN_ALPHA:: HOLTermRep tm cls thry => tm -> Conversion cls thry
+convGEN_ALPHA v = Conv $ \ tm -> note "convGEN_ALPHA" $
     case tm of
       Abs{} -> runConv (convALPHA v) tm
       (Comb b@Const{} ab@Abs{}) ->
           do abth <- runConv (convALPHA v) ab
-             liftO $ ruleAP_TERM b abth
-      _ -> fail "convGEN_ALPHA: not a binder term."
-convGEN_ALPHA _ = _FAIL "convGEN_ALPHA: provided term not a variable"
+             ruleAP_TERM b abth
+      _ -> fail' "not a binder term."
 
 {-|
   The 'convGEN_TYALPHA' conversion converts the bound type variable of a term 
@@ -551,15 +545,14 @@ convGEN_ALPHA _ = _FAIL "convGEN_ALPHA: provided term not a variable"
 
   * The term the conversion is applied to does not have a type binder. 
 -}
-convGEN_TYALPHA:: HOLType -> Conversion cls thry
-convGEN_TYALPHA v@(TyVar True _) = Conv $ \ tm ->
+convGEN_TYALPHA :: HOLTypeRep ty cls thry => ty -> Conversion cls thry
+convGEN_TYALPHA v = Conv $ \ tm -> note "convGEN_TYALPHA" $
     case tm of
       TyAbs{} -> runConv (convTYALPHA v) tm
       (Comb b@Const{} ab@TyAbs{}) ->
           do abth <- runConv (convTYALPHA v) ab
-             liftO $ ruleAP_TERM b abth
-      _ -> fail "convGEN_TYALPHA: not a type binder term."
-convGEN_TYALPHA _ = _FAIL "convGEN_TYALPHA: provided type not a small variable."
+             ruleAP_TERM b abth
+      _ -> fail' "not a type binder term."
 
 {-|
   The 'convSYM' conversion performs a symmetry conversion on an equational 
@@ -568,10 +561,10 @@ convGEN_TYALPHA _ = _FAIL "convGEN_TYALPHA: provided type not a small variable."
   equational term.
 -}
 convSYM :: Conversion cls thry
-convSYM = Conv $ \ tm -> liftEither "convSYM" $
-    do th1 <- ruleSYM =<< primASSUME tm
-       th2 <- ruleSYM =<< primASSUME (concl th1)
-       return $! primDEDUCT_ANTISYM th2 th1
+convSYM = Conv $ \ tm -> note "convSYM" $
+    do th1 <- ruleSYM $ primASSUME tm
+       th2 <- ruleSYM . primASSUME $ concl th1
+       primDEDUCT_ANTISYM th2 th1
 
 
 -- Beta Conversions 
@@ -583,14 +576,13 @@ convSYM = Conv $ \ tm -> liftEither "convSYM" $
   to is not a valid redex.
 -}
 convBETA :: Conversion cls thry
-convBETA = Conv $ \ tm -> liftEither "convBETA" $
+convBETA = Conv $ \ tm -> note "convBETA" $
     case tm of
         (Comb f@(Abs v _) arg)
             | v == arg -> primBETA tm
             | otherwise -> 
-                  do th <- primBETA =<< mkComb f v
-                     liftO $ primINST [(v, arg)] th
-        _ -> Left "not a beta-redex."
+                  primINST [(v, arg)] $ primBETA =<< mkComb f v
+        _ -> fail "not a beta-redex."
 
 {-|
   The 'convTYBETA' conversion performs a type beta reduction, returning a 
@@ -600,13 +592,13 @@ convBETA = Conv $ \ tm -> liftEither "convBETA" $
   the conversion is applied to is not a valid type redex.
 -}
 convTYBETA :: Conversion cls thry
-convTYBETA = Conv $ \ tm -> liftEither "convTYBETA" $
+convTYBETA = Conv $ \ tm -> note "convTYBETA" $
     case tm of
       (TyComb t@(TyAbs tv _) ty)
           | tv == ty -> primTYBETA tm
           | otherwise ->
-                liftM (primINST_TYPE [(tv, ty)]) $ primTYBETA =<< mkTyComb t tv
-      _ -> Left "not a type beta-redex."
+                primINST_TYPE [(tv, ty)] $ primTYBETA =<< mkTyComb t tv
+      _ -> fail' "not a type beta-redex."
 
 
 -- depth conversions
@@ -672,8 +664,8 @@ convTOP_SWEEP = _TRY . topSweepQConv
 thenqc :: Conversion cls thry -> Conversion cls thry -> Conversion cls thry
 thenqc conv1 conv2 = Conv $ \ tm ->
     (do th@(Thm _ tm') <- runConv conv1 tm      
-        (do tmth <- runConv conv2 . fromJust $ rand tm'
-            liftO $ primTRANS th tmth)
+        (do tmth <- runConv conv2 =<< rand tm'
+            primTRANS th tmth)
           <|> return th)
     <|> runConv conv2 tm
 
@@ -681,8 +673,8 @@ thenqc conv1 conv2 = Conv $ \ tm ->
 thencqc :: Conversion cls thry -> Conversion cls thry -> Conversion cls thry
 thencqc conv1 conv2 = Conv $ \ tm ->
     do th@(Thm _ tm') <- runConv conv1 tm       
-       (do tmth <- runConv conv2 . fromJust $ rand tm'
-           liftO $ primTRANS th tmth)
+       (do tmth <- runConv conv2 =<< rand tm'
+           primTRANS th tmth)
          <|> return th
 
 {- 
@@ -694,12 +686,10 @@ combQConv conv = Conv $ \ tm ->
     case tm of
       (Comb l r) -> 
           (do th <- runConv conv l
-              (do rth <- runConv conv r
-                  liftO $ primMK_COMB th rth)
-                <|> liftO (ruleAP_THM th r))
-          <|> (do rth <- runConv conv r
-                  liftO $ ruleAP_TERM l rth)
-      _ -> fail "combQConv"
+              (primMK_COMB th $ runConv conv r)
+                <|> (ruleAP_THM th r))
+          <|> (ruleAP_TERM l $ runConv conv r)
+      _ -> fail' "combQConv"
 
 repeatqc :: Conversion cls thry -> Conversion cls thry
 repeatqc conv = conv `thencqc` repeatqc conv
@@ -723,16 +713,16 @@ subQConv conv = Conv $ \ tm ->
   the operator then all subterms will be converted.  It fails if the original 
   conversion fails on a subterm.
 -}
-convDEPTH_BINOP :: HOLTermRep tm cls thry => tm -> Conversion cls thry 
-                -> Conversion cls thry
-convDEPTH_BINOP pop conv = Conv $ \ tm -> noteHOL "convDEPTH_BINOP" $
+convDEPTH_BINOP :: HOLTermRep tm cls thry 
+                => tm -> Conversion cls thry -> Conversion cls thry
+convDEPTH_BINOP pop conv = Conv $ \ tm -> note "convDEPTH_BINOP" $
     case tm of
       (Comb (Comb op' l) r) ->
           do op <- toHTm pop
              if op' == op
                 then do lth <- runConv (convDEPTH_BINOP pop conv) l
                         rth <- runConv (convDEPTH_BINOP pop conv) r
-                        liftO $ liftM1 primMK_COMB (ruleAP_TERM op' lth) rth
+                        primMK_COMB (ruleAP_TERM op' lth) rth
                 else runConv conv tm
       _ -> runConv conv tm
 
@@ -758,8 +748,8 @@ convDEPTH_BINOP pop conv = Conv $ \ tm -> noteHOL "convDEPTH_BINOP" $
 
   * The original conversion fails on any of the subterms.
 -}
-convPATH :: forall cls thry. 
-            String -> Conversion cls thry -> Conversion cls thry
+convPATH :: forall cls thry
+          . String -> Conversion cls thry -> Conversion cls thry
 convPATH pth conv = _NOTE "convPATH" $ cnvsl pth
   where cnvsl :: String -> Conversion cls thry
         cnvsl [] = conv
@@ -781,22 +771,23 @@ convPATH pth conv = _NOTE "convPATH" $ cnvsl pth
   is functionally equivalent to 'convRATOR'.  It fails when the original 
   conversion fails on a targetted subterm.
 -}
-convPAT :: forall cls thry. 
-           HOLTerm -> Conversion cls thry -> Conversion cls thry
-convPAT p conv = Conv $ \ t -> noteHOL "convPAT" $
-    let (xs, pbod) = stripAbs p in
-      runConv (pconv xs pbod) t
-    where pconv :: [HOLTerm] -> HOLTerm -> Conversion cls thry 
-          pconv xs pat
-              | pat `elem` xs = conv
-              | not (any (`freeIn` pat) xs) = convALL
-              | otherwise = 
-                  case pat of
-                    (Comb l r) -> 
-                        convCOMB2 (pconv xs l) (pconv xs r)
-                    (Abs _ bod) -> 
-                        convABS (pconv xs bod)
-                    _ -> convFAIL "bad pattern."
+convPAT :: forall tm cls thry . HOLTermRep tm cls thry
+        => tm -> Conversion cls thry -> Conversion cls thry
+convPAT ptm conv = Conv $ \ t -> note "convPAT" $
+    do p <- toHTm ptm
+       let (xs, pbod) = stripAbs p
+       runConv (pconv xs pbod) t
+  where pconv :: [HOLTerm] -> HOLTerm -> Conversion cls thry
+        pconv xs pat
+            | pat `elem` xs = conv
+            | not (any (`freeIn` pat) xs) = convALL
+            | otherwise = 
+                case pat of
+                  (Comb l r) -> 
+                      convCOMB2 (pconv xs l) (pconv xs r)
+                  (Abs _ bod) -> 
+                      convABS (pconv xs bod)
+                  _ -> convFAIL "bad pattern."
 
 
 {-|
@@ -807,19 +798,23 @@ convPAT p conv = Conv $ \ t -> noteHOL "convPAT" $
 -}
 convSUBS :: HOLThmRep thm cls thry => [thm] -> Conversion cls thry
 convSUBS [] = convALL
-convSUBS pths = Conv $ \ tm -> noteHOL "convSUBS" $
+convSUBS pths = Conv $ \ tm -> note "convSUBS" $
     do ths <- mapM toHThm pths
-       lfts <- liftMaybe "not an equational theorem." $
-                 mapM (lHand . concl) ths
+       lfts <- mapM (lHand . concl) ths
        gvs <- mapM (genVar . typeOf) lfts
-       let pat = fromJust $ subst (zip lfts gvs) tm
-       let abTh = primREFL . fromRight $ listMkAbs gvs pat
-       th@(Thm _ tm') <- foldlM (\ x y -> ruleCONV
-                                 (convRAND convBETA `_THEN` convLAND convBETA)
-                                 (fromRight $ primMK_COMB x y)) abTh ths
-       if rand tm' == Just tm 
-          then return $! primREFL tm
-          else return th
+       pat <- subst (zip lfts gvs) tm
+       abTh <- primREFL =<< listMkAbs gvs pat
+       th@(Thm _ c) <- foldlM foldFun abTh ths
+       case runCatch $ rand c of
+         Right tm'
+             | tm' == tm -> primREFL tm
+             | otherwise -> return th
+         _ -> return th
+  where conv :: Conversion cls thry
+        conv = convRAND convBETA `_THEN` convLAND convBETA
+        
+        foldFun :: HOLThm -> HOLThm -> HOL cls thry HOLThm
+        foldFun x y = ruleCONV conv $ primMK_COMB x y
 
 -- other derived rules
 {-|@
@@ -831,12 +826,11 @@ convSUBS pths = Conv $ \ tm -> noteHOL "convSUBS" $
   Applies a conversion to the conclusion of a theorem, unifying any newly
   introduced assumptions.  Throws a 'HOLException' when the conversion fails.
 -}
-ruleCONV :: HOLThmRep thm cls thry => Conversion cls thry -> thm 
-         -> HOL cls thry HOLThm
-ruleCONV conv pthm = noteHOL "ruleCONV" $
-    do thm <- toHThm pthm
-       thm' <- runConv conv $ concl thm
-       liftO $ primEQ_MP thm' thm
+ruleCONV :: HOLThmRep thm cls thry 
+         => Conversion cls thry -> thm -> HOL cls thry HOLThm
+ruleCONV conv pthm =
+    (do thm@(Thm _ c) <- toHThm pthm
+        primEQ_MP (runConv conv c) thm) <?> "ruleCONV"
 
 {-|@
  A |- (\ x1 ... xn . t) s1 ... sn
@@ -846,8 +840,8 @@ ruleCONV conv pthm = noteHOL "ruleCONV" $
 
   Never fails, but may have no effect.
 -}
-ruleBETA :: HOLThm -> HOL cls thry HOLThm
-ruleBETA = noteHOL "ruleBETA" . ruleCONV (convREDEPTH convBETA)
+ruleBETA :: HOLThmRep thm cls thry => thm -> HOL cls thry HOLThm
+ruleBETA = note "ruleBETA" . ruleCONV (convREDEPTH convBETA)
 
 {-|@
  A |- (\\ x1 ... xn . t) [: s1 ... sn]
@@ -857,8 +851,8 @@ ruleBETA = noteHOL "ruleBETA" . ruleCONV (convREDEPTH convBETA)
 
   Never fails, but may have no effect.
 -}
-ruleTYBETA :: HOLThm -> HOL cls thry HOLThm
-ruleTYBETA = noteHOL "ruleTYBETA" . ruleCONV (convREDEPTH convTYBETA)
+ruleTYBETA :: HOLThmRep thm cls thry => thm -> HOL cls thry HOLThm
+ruleTYBETA = note "ruleTYBETA" . ruleCONV (convREDEPTH convTYBETA)
 
 {-|@
  A |- (l1 = r1) ... (l2 = r2)
@@ -869,9 +863,7 @@ ruleTYBETA = noteHOL "ruleTYBETA" . ruleCONV (convREDEPTH convTYBETA)
   Never fails, but may have no effect.
 -}
 ruleGSYM :: HOLThmRep thm cls thry => thm -> HOL cls thry HOLThm
-ruleGSYM = ruleGSYM' <=< toHThm
-  where ruleGSYM' :: HOLThm -> HOL cls thry HOLThm
-        ruleGSYM' = noteHOL "ruleGSYM" . ruleCONV (convONCE_DEPTH convSYM)
+ruleGSYM = note "ruleGSYM" . ruleCONV (convONCE_DEPTH convSYM)
 
 {-|@
  [A1 |- l1 = r1, ..., An |- ln = rn]    A |-t
@@ -883,4 +875,4 @@ ruleGSYM = ruleGSYM' <=< toHThm
   the provided list is not equational.
 -}
 ruleSUBS :: HOLThmRep thm cls thry => [thm] -> HOLThm -> HOL cls thry HOLThm
-ruleSUBS thms = noteHOL "ruleSUBS" . ruleCONV (convSUBS thms)
+ruleSUBS thms = note "ruleSUBS" . ruleCONV (convSUBS thms)
