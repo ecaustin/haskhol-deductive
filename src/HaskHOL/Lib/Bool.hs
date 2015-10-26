@@ -95,13 +95,13 @@ pattern T <- Const "T" _
 pattern F <- Const "F" _
 
 
-tmp, tmq, tmr, tmt, tmx, tmpred :: BoolCtxt thry => HOL cls thry HOLTerm
-tmp = serve [bool| p:bool |]
-tmq = serve [bool| q:bool |]
-tmr = serve [bool| r:bool |]
-tmt = serve [bool| t:bool |]
-tmx = serve [bool| x:A |]
-tmpred = serve [bool| P:A->bool |]
+tmP, tmQ, tmR, tmT, tmX, tmPred :: BoolCtxt thry => HOL cls thry HOLTerm
+tmP = serve [bool| p:bool |]
+tmQ = serve [bool| q:bool |]
+tmR = serve [bool| r:bool |]
+tmT = serve [bool| t:bool |]
+tmX = serve [bool| x:A |]
+tmPred = serve [bool| P:A->bool |]
 
 
 --allows easy instantiation for pro forma theorems
@@ -180,10 +180,10 @@ ruleEQT_INTRO :: (BoolCtxt thry, HOLThmRep thm cls thry)
               => thm -> HOL cls thry HOLThm
 ruleEQT_INTRO pthm = 
     do thm@(Thm _ c) <- toHThm pthm
-       primEQ_MP (primINST [(tmt, c)] ruleEQT_INTRO_pth) thm
+       primEQ_MP (primINST [(tmT, c)] ruleEQT_INTRO_pth) thm
   where ruleEQT_INTRO_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleEQT_INTRO_pth = cacheProof "ruleEQT_INTRO" ctxtBool $
-            do th1 <- primASSUME tmt
+            do th1 <- primASSUME tmT
                th2@(Thm _ tm) <- primDEDUCT_ANTISYM th1 thmTRUTH
                th3 <- ruleEQT_ELIM $ primASSUME tm
                primDEDUCT_ANTISYM th3 th2
@@ -207,16 +207,16 @@ ruleCONJ pthm1 pthm2 =
     do thm1@(Thm _ t1) <- toHThm pthm1
        thm2@(Thm _ t2) <- toHThm pthm2
        rulePROVE_HYP thm2 . rulePROVE_HYP thm1 $
-         primINST [(tmp, t1), (tmq, t2)] ruleCONJ_pth
+         primINST [(tmP, t1), (tmQ, t2)] ruleCONJ_pth
   where ruleCONJ_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleCONJ_pth = cacheProof "ruleCONJ_pth" ctxtBool $
-            do eqpthm <- ruleEQT_INTRO $ primASSUME tmp
-               eqqthm <- ruleEQT_INTRO $ primASSUME tmq
+            do eqpthm <- ruleEQT_INTRO $ primASSUME tmP
+               eqqthm <- ruleEQT_INTRO $ primASSUME tmQ
                th0 <- ruleAP_TERM [txt| f:bool->bool->bool |] eqpthm
                th1 <- primABS [txt| f:bool->bool->bool |] $ 
                         primMK_COMB th0 eqqthm
-               th1_5 <- ruleAP_THM defAND tmp
-               th2 <- ruleBETA $ ruleAP_THM th1_5 tmq
+               th1_5 <- ruleAP_THM defAND tmP
+               th2 <- ruleBETA $ ruleAP_THM th1_5 tmQ
                primEQ_MP (ruleSYM th2) th1
 
 {-|@
@@ -235,12 +235,12 @@ ruleCONJUNCT1 pthm =
        case concl thm of
          (l :/\ r) -> 
              rulePROVE_HYP thm $
-               primINST [ (tmp, l), (tmq, r) ] ruleCONJUNCT1_pth
+               primINST [ (tmP, l), (tmQ, r) ] ruleCONJUNCT1_pth
          _ -> fail "ruleCONJUNCT1: conclusion not a conjunction."
   where ruleCONJUNCT1_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleCONJUNCT1_pth = cacheProof "ruleCONJUNCT1_pth" ctxtBool $
-            do thm1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defAND tmp
-               thm2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM thm1 tmq
+            do thm1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defAND tmP
+               thm2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM thm1 tmQ
                thm3 <- primEQ_MP thm2 $ primASSUME [txt| p /\ q |]
                ruleEQT_ELIM . ruleBETA $ 
                  ruleAP_THM thm3 [txt| \(p:bool) (q:bool). p |]
@@ -261,12 +261,12 @@ ruleCONJUNCT2 pthm =
        case concl thm of
          (l :/\ r) ->
              rulePROVE_HYP thm $
-               primINST [ (tmp, l), (tmq, r) ] ruleCONJUNCT2_pth
+               primINST [ (tmP, l), (tmQ, r) ] ruleCONJUNCT2_pth
          _ -> fail "ruleCONJUNCT2: conclusion not a conjunction."
   where ruleCONJUNCT2_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleCONJUNCT2_pth = cacheProof "ruleCONJUNCT2_pth" ctxtBool $
-            do thm1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defAND tmp
-               thm2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM thm1 tmq
+            do thm1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defAND tmP
+               thm2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM thm1 tmQ
                thm3 <- primEQ_MP thm2 $ primASSUME [txt| p /\ q |]
                ruleEQT_ELIM . ruleBETA $ 
                  ruleAP_THM thm3 [txt| \(p:bool) (q:bool). q |]
@@ -328,15 +328,15 @@ ruleMP pthm1 pthm2 = note "ruleMP" $
          (ant :==> con)
              | ant `aConv` t1 ->  
                  rulePROVE_HYP thm . rulePROVE_HYP ithm $ 
-                   primINST [ (tmp, ant), (tmq, con) ] ruleMP_pth
+                   primINST [ (tmP, ant), (tmQ, con) ] ruleMP_pth
              | otherwise -> fail "theorems do not agree."
          _ -> fail "not an implication."
   where ruleMP_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleMP_pth = cacheProof "ruleMP_pth" ctxtBool $
-            do th1 <- ruleAP_THM (ruleAP_THM defIMP tmp) tmq
+            do th1 <- ruleAP_THM (ruleAP_THM defIMP tmP) tmQ
                th2 <- ruleBETA th1
                th3 <- ruleSYM . primEQ_MP th2 $ primASSUME [txt| p ==> q |]     
-               ruleCONJUNCT2 . primEQ_MP th3 $ primASSUME tmp
+               ruleCONJUNCT2 . primEQ_MP th3 $ primASSUME tmP
 
 {-|@
      u    A |- t     
@@ -353,13 +353,13 @@ ruleDISCH ptm pthm =
         thm@(Thm _ t) <- toHThm pthm
         th1 <- ruleCONJ (primASSUME a) thm
         th2 <- ruleCONJUNCT1 $ primASSUME (concl th1)
-        pth' <- primINST [(tmp, a), (tmq, t)] ruleDISCH_pth
+        pth' <- primINST [(tmP, a), (tmQ, t)] ruleDISCH_pth
         primEQ_MP pth' $ primDEDUCT_ANTISYM th1 th2) 
     <?> "ruleDISCH"
   where ruleDISCH_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleDISCH_pth = cacheProof "ruleDISCH_pth" ctxtBool $
-            do th1 <- ruleAP_THM defIMP tmp
-               ruleSYM . ruleBETA $ ruleAP_THM th1 tmq
+            do th1 <- ruleAP_THM defIMP tmP
+               ruleSYM . ruleBETA $ ruleAP_THM th1 tmQ
 
 {-|@
       A1, ..., An |- t     
@@ -458,7 +458,7 @@ ruleEQ_IMP pthm = note "ruleEQ_IMP" $
     do thm <- toHThm pthm
        case concl thm of
          (l :<=> r) ->
-           let instFun = primINST [ (tmp, l), (tmq, r) ] in
+           let instFun = primINST [ (tmP, l), (tmQ, r) ] in
              do (pth1', pth2') <- pairMapM instFun ( ruleEQ_IMP_pth1
                                                    , ruleEQ_IMP_pth2 )
                 pairMapM (flip ruleMP thm) (pth1', pth2')
@@ -466,14 +466,14 @@ ruleEQ_IMP pthm = note "ruleEQ_IMP" $
   where ruleEQ_IMP_pth1 :: BoolCtxt thry => HOL cls thry HOLThm
         ruleEQ_IMP_pth1 = cacheProof "ruleEQ_IMP_pth1" ctxtBool $
             do th1 <- primASSUME [txt| p <=> q |]
-               th2 <- primEQ_MP th1 $ primASSUME tmp
-               ruleDISCH [txt| p <=> q |] $ ruleDISCH tmp th2
+               th2 <- primEQ_MP th1 $ primASSUME tmP
+               ruleDISCH [txt| p <=> q |] $ ruleDISCH tmP th2
 
         ruleEQ_IMP_pth2 :: BoolCtxt thry => HOL cls thry HOLThm
         ruleEQ_IMP_pth2 = cacheProof "ruleEQ_IMP_pth2" ctxtBool $
             do th1 <- ruleSYM $ primASSUME [txt| p <=> q |]
-               th2 <- primEQ_MP th1 $ primASSUME tmq
-               ruleDISCH [txt| p <=> q |] $ ruleDISCH tmq th2 
+               th2 <- primEQ_MP th1 $ primASSUME tmQ
+               ruleDISCH [txt| p <=> q |] $ ruleDISCH tmQ th2 
                  
 
 {-|@
@@ -498,7 +498,7 @@ ruleIMP_TRANS pthm1 pthm2 = note "ruleIMP_TRANS" $
          (x :==> y1, y2 :==> z)
              | y1 /= y2 -> fail "implications are not transitive."
              | otherwise ->
-                 do pth' <- primINST [ (tmp, x), (tmq, y1), (tmr, z) 
+                 do pth' <- primINST [ (tmP, x), (tmQ, y1), (tmR, z) 
                                      ] ruleIMP_TRANS_pth
                     ruleMP (ruleMP pth' thm1) thm2
          _ -> fail "not implications."
@@ -506,7 +506,7 @@ ruleIMP_TRANS pthm1 pthm2 = note "ruleIMP_TRANS" $
         ruleIMP_TRANS_pth = cacheProof "ruleIMP_TRANS_pth" ctxtBool $
             do qrth <- primASSUME [txt| q ==> r |]
                pqth <- primASSUME [txt| p ==> q |]
-               mpth <- ruleMP qrth . ruleMP pqth $ primASSUME tmp
+               mpth <- ruleMP qrth . ruleMP pqth $ primASSUME tmP
                foldrM ruleDISCH mpth [ [txt| p ==> q |], [txt| q ==> r |]
                                      , [txt| p:bool |] ]
 
@@ -536,16 +536,16 @@ ruleSPEC ptm pthm = note "ruleSPEC" $
        case concl thm of
          (Bind' "!" ab@(Abs (Var _ bvty) _)) ->
              do tm <- toHTm ptm
-                pth' <- rulePINST [(tyA, bvty)] [ (tmpred, ab), (tmx, tm)
+                pth' <- rulePINST [(tyA, bvty)] [ (tmPred, ab), (tmX, tm)
                                                 ] ruleSPEC_pth
                 (ruleCONV convBETA $ ruleMP pth' thm) <?> "types do not agree."
          _ -> fail "not universally quantified."
   where ruleSPEC_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleSPEC_pth = cacheProof "ruleSPEC_pth" ctxtBool $
-            do th1 <- ruleAP_THM defFORALL tmpred
+            do th1 <- ruleAP_THM defFORALL tmPred
                th1_5 <- primEQ_MP th1 $ primASSUME [txt| (!)(P:A->bool) |]
                th2 <- ruleCONV convBETA th1_5
-               th3 <- ruleCONV (convRAND convBETA) $ ruleAP_THM th2 tmx
+               th3 <- ruleCONV (convRAND convBETA) $ ruleAP_THM th2 tmX
                ruleDISCH_ALL $ ruleEQT_ELIM th3
 
 
@@ -684,7 +684,7 @@ ruleGEN px pthm = note "ruleGEN" $
   where ruleGEN_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleGEN_pth = cacheProof "ruleGEN_pth" ctxtBool .
             ruleSYM . ruleCONV (convRAND convBETA) $ 
-              ruleAP_THM defFORALL tmpred
+              ruleAP_THM defFORALL tmPred
 
 
 {-|@
@@ -748,18 +748,18 @@ ruleEXISTS ptm1 ptm2 thm =
         ab <- rator atm
         th1 <- runConv convBETA =<< mkComb ab stm
         pth' <- rulePINST [(tyA, typeOf stm)] 
-                  [ (tmpred, ab), (tmx, stm) ] ruleEXISTS_pth
+                  [ (tmPred, ab), (tmX, stm) ] ruleEXISTS_pth
         th2 <- primEQ_MP (ruleSYM th1) thm
         rulePROVE_HYP th2 pth')
     <?> "ruleEXISTS"
   where ruleEXISTS_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleEXISTS_pth = cacheProof "ruleEXISTS_pth" ctxtBool $
             do th1 <- ruleCONV (convRAND convBETA) $
-                        ruleAP_THM defEXISTS tmpred
-               th2 <- ruleSPEC tmx $ primASSUME [txt| !x:A. P x ==> q |]
+                        ruleAP_THM defEXISTS tmPred
+               th2 <- ruleSPEC tmX $ primASSUME [txt| !x:A. P x ==> q |]
                th3 <- ruleDISCH [txt| !x:A. P x ==> q |] . ruleMP th2 $ 
                         primASSUME [txt| (P:A->bool) x |]
-               th4 <- ruleGEN tmq th3
+               th4 <- ruleGEN tmQ th3
                primEQ_MP (ruleSYM th1) th4
 
 {-|@
@@ -808,16 +808,16 @@ ruleCHOOSE ptm pthm1 pthm2 = note "ruleCHOOSE" $
                  thm4 <- ruleGEN v . ruleDISCH cmb $ 
                            ruleMP (ruleDISCH pat thm2) thm3
                  thm5 <- rulePINST [(tyA, typeOf v)] 
-                           [ (tmpred, ab), (tmq, concl thm2) ] ruleCHOOSE_pth
+                           [ (tmPred, ab), (tmQ, concl thm2) ] ruleCHOOSE_pth
                  ruleMP (ruleMP thm5 thm4) thm1)
              <?> "provided term is free in resultant theorem."
          _ -> fail "conclusion not existentially quantified."
   where ruleCHOOSE_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleCHOOSE_pth = cacheProof "ruleCHOOSE_pth" ctxtBool $
             do th1 <- ruleCONV (convRAND convBETA) $ 
-                        ruleAP_THM defEXISTS tmpred
+                        ruleAP_THM defEXISTS tmPred
                (th2, _) <- ruleEQ_IMP th1
-               th3 <- ruleSPEC tmq $ ruleUNDISCH th2
+               th3 <- ruleSPEC tmQ $ ruleUNDISCH th2
                ruleDISCH_ALL . ruleDISCH [txt| (?) (P:A->bool) |] $ 
                  ruleUNDISCH th3
 
@@ -861,14 +861,14 @@ ruleDISJ1 :: (BoolCtxt thry, HOLThmRep thm cls thry, HOLTermRep tm cls thry)
 ruleDISJ1 pthm ptm = 
     (do thm@(Thm _ c) <- toHThm pthm
         tm <- toHTm ptm
-        rulePROVE_HYP thm $ primINST [ (tmp, c), (tmq, tm) ] ruleDISJ1_pth)
+        rulePROVE_HYP thm $ primINST [ (tmP, c), (tmQ, tm) ] ruleDISJ1_pth)
         <?> "ruleDISJ1"
   where ruleDISJ1_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleDISJ1_pth = cacheProof "ruleDISJ1_pth" ctxtBool $
-            do th1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defOR tmp
-               th2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM th1 tmq
-               th3 <- ruleMP (primASSUME [txt| p ==> t |]) $ primASSUME tmp
-               th4 <- ruleGEN tmt . ruleDISCH [txt| p ==> t |] $ 
+            do th1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defOR tmP
+               th2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM th1 tmQ
+               th3 <- ruleMP (primASSUME [txt| p ==> t |]) $ primASSUME tmP
+               th4 <- ruleGEN tmT . ruleDISCH [txt| p ==> t |] $ 
                         ruleDISCH [txt| q ==> t |] th3
                primEQ_MP (ruleSYM th2) th4
 
@@ -885,14 +885,14 @@ ruleDISJ2 :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry)
 ruleDISJ2 ptm pthm = 
     (do tm <- toHTm ptm
         thm@(Thm _ c) <- toHThm pthm
-        rulePROVE_HYP thm $ primINST [ (tmp, tm), (tmq, c) ] ruleDISJ2_pth)
+        rulePROVE_HYP thm $ primINST [ (tmP, tm), (tmQ, c) ] ruleDISJ2_pth)
     <?> "ruleDISJ2"
   where ruleDISJ2_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleDISJ2_pth = cacheProof "ruleDISJ2_pth" ctxtBool $
-            do th1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defOR tmp
-               th2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM th1 tmq
-               th3 <- ruleMP (primASSUME [txt| q ==> t |]) $ primASSUME tmq
-               th4 <- ruleGEN tmt . ruleDISCH [txt| p ==> t |] $ 
+            do th1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defOR tmP
+               th2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM th1 tmQ
+               th3 <- ruleMP (primASSUME [txt| q ==> t |]) $ primASSUME tmQ
+               th4 <- ruleGEN tmT . ruleDISCH [txt| p ==> t |] $ 
                         ruleDISCH [txt| q ==> t |] th3
                primEQ_MP (ruleSYM th2) th4
 
@@ -924,14 +924,14 @@ ruleDISJ_CASES pthm1 pthm2 pthm3 = note "ruleDISJ_CASES" $
                            dth2 <- ruleDISCH l0 th1
                            rulePROVE_HYP dth1 . rulePROVE_HYP dth2 . 
                              rulePROVE_HYP th0 $ primINST 
-                               [ (tmp, l0), (tmq, r0), (tmr, c1) 
+                               [ (tmP, l0), (tmQ, r0), (tmR, c1) 
                                ] ruleDISJ_CASES_pth
          _ -> fail "theorem not a disjunction."
   where ruleDISJ_CASES_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleDISJ_CASES_pth = cacheProof "ruleDISJ_CASES_pth" ctxtBool $
-            do thm1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defOR tmp
-               thm2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM thm1 tmq
-               thm3 <- ruleSPEC tmr . primEQ_MP thm2 $ 
+            do thm1 <- ruleCONV (convRAND convBETA) $ ruleAP_THM defOR tmP
+               thm2 <- ruleCONV (convRAND convBETA) $ ruleAP_THM thm1 tmQ
+               thm3 <- ruleSPEC tmR . primEQ_MP thm2 $ 
                          primASSUME [txt| p \/ q |]
                ruleUNDISCH $ ruleUNDISCH thm3
 
@@ -983,12 +983,12 @@ ruleNOT_ELIM pthm = note "ruleNOT_ELIM" $
     do thm <- toHThm pthm
        case concl thm of
          (Neg tm) ->
-             do pth' <- primINST [(tmp, tm)] ruleNOT_ELIM_pth
+             do pth' <- primINST [(tmP, tm)] ruleNOT_ELIM_pth
                 primEQ_MP pth' thm
          _ -> fail "not a negation."
   where ruleNOT_ELIM_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleNOT_ELIM_pth = cacheProof "ruleNOT_ELIM_pth" ctxtBool .
-            ruleCONV (convRAND convBETA) $ ruleAP_THM defNOT tmp
+            ruleCONV (convRAND convBETA) $ ruleAP_THM defNOT tmP
 
 {-|@
  A |- t ==> F
@@ -1005,12 +1005,12 @@ ruleNOT_INTRO pthm = note "ruleNOT_INTRO" $
     do thm <- toHThm pthm
        case concl thm of
          (tm :==> _) ->
-             do pth' <- primINST [(tmp, tm)] ruleNOT_INTRO_pth
+             do pth' <- primINST [(tmP, tm)] ruleNOT_INTRO_pth
                 primEQ_MP pth' thm
          _ -> fail "not an implication."
   where ruleNOT_INTRO_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleNOT_INTRO_pth = cacheProof "ruleNOT_INTRO_pth" ctxtBool .
-            ruleSYM . ruleCONV (convRAND convBETA) $ ruleAP_THM defNOT tmp
+            ruleSYM . ruleCONV (convRAND convBETA) $ ruleAP_THM defNOT tmP
 
 {-|@
   A |- ~t
@@ -1027,13 +1027,13 @@ ruleEQF_INTRO pthm = note "ruleEQF_INTRO" $
     do thm <- toHThm pthm
        case concl thm of
          (Neg tm) ->
-             do pth' <- primINST [(tmp, tm)] ruleEQF_INTRO_pth
+             do pth' <- primINST [(tmP, tm)] ruleEQF_INTRO_pth
                 ruleMP pth' thm
          _ -> fail "not a negation."
   where ruleEQF_INTRO_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleEQF_INTRO_pth = cacheProof "ruleEQF_INTRO_pth" ctxtBool $
             do th1 <- ruleNOT_ELIM $ primASSUME [txt| ~p |]
-               th2 <- ruleDISCH [txt| F |] . ruleSPEC tmp .
+               th2 <- ruleDISCH [txt| F |] . ruleSPEC tmP .
                         primEQ_MP defFALSE $ primASSUME [txt| F |]
                ruleDISCH_ALL $ ruleIMP_ANTISYM th1 th2
 
@@ -1052,14 +1052,14 @@ ruleEQF_ELIM pthm = note "ruleEQF_ELIM" $
     do thm <- toHThm pthm
        case concl thm of
          (tm :<=> _) ->
-             do pth' <- primINST [(tmp, tm)] ruleEQF_ELIM_pth
+             do pth' <- primINST [(tmP, tm)] ruleEQF_ELIM_pth
                 ruleMP pth' thm
          _ -> fail "not an equality."
   where ruleEQF_ELIM_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleEQF_ELIM_pth = cacheProof "ruleEQF_ELIM_pth" ctxtBool $
           do th1 <- primEQ_MP defFALSE . primEQ_MP (primASSUME [txt| p = F |]) $
-                      primASSUME tmp
-             ruleDISCH_ALL . ruleNOT_INTRO . ruleDISCH tmp $
+                      primASSUME tmP
+             ruleDISCH_ALL . ruleNOT_INTRO . ruleDISCH tmP $
                ruleSPEC [txt| F |] th1
 
 {-|@
@@ -1078,10 +1078,10 @@ ruleCONTR :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry)
           => tm -> thm -> HOL cls thry HOLThm
 ruleCONTR tm thm =
     (rulePROVE_HYP thm $ 
-       primINST [(tmp, tm)] ruleCONTR_pth) <?> "ruleCONTR"
+       primINST [(tmP, tm)] ruleCONTR_pth) <?> "ruleCONTR"
   where ruleCONTR_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleCONTR_pth = cacheProof "ruleCONTR_pth" ctxtBool .
-            ruleSPEC tmp . primEQ_MP defFALSE $ primASSUME [txt| F |]
+            ruleSPEC tmP . primEQ_MP defFALSE $ primASSUME [txt| F |]
 
 {-|@
   A |- ?!x. p
@@ -1098,13 +1098,13 @@ ruleEXISTENCE pthm = note "ruleEXISTENCE" $
     do thm <- toHThm pthm
        case concl thm of
          (Bind' "?!" ab@(Abs (Var _ ty) _)) ->
-             do pth' <- rulePINST [(tyA, ty)] [(tmpred, ab)] ruleEXISTENCE_pth
+             do pth' <- rulePINST [(tyA, ty)] [(tmPred, ab)] ruleEXISTENCE_pth
                 ruleMP pth' thm
          _ -> fail "not a unique-existential."
   where ruleEXISTENCE_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleEXISTENCE_pth = cacheProof "ruleEXISTENCE_pth" ctxtBool $
             do th1 <- ruleCONV (convRAND convBETA) $ 
-                        ruleAP_THM defEXISTS_UNIQUE tmpred
+                        ruleAP_THM defEXISTS_UNIQUE tmPred
                th2 <- ruleUNDISCH $ liftM fst (ruleEQ_IMP th1)
                ruleDISCH_ALL $ ruleCONJUNCT1 th2
 
