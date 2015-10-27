@@ -20,7 +20,8 @@ library
                         TemplateHaskell, TypeFamilies
     build-depends:   base >= 4.7
                    , template-haskell >= 2.9
-                   , wl-pprint-text >= 1.1
+                   , wl-pprint-extras >= 3.5
+                   , wl-pprint-terminfo >= 3.7
                    , haskhol-core >= 1.2
 
     exposed-modules:

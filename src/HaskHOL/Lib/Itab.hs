@@ -21,7 +21,7 @@ import HaskHOL.Lib.Tactics
 
 tacUnifyAccept :: [HOLTerm] -> ThmTactic cls thry
 tacUnifyAccept mvs th (Goal _ w) =
-    do insts <- liftO $ termUnify mvs (concl th) w
+    do insts <- termUnify mvs (concl th) w
        return (GS ([], insts) []
                (\ i _ -> do th' <- ruleINSTANTIATE insts th
                             ruleINSTANTIATE i th'))
@@ -32,19 +32,17 @@ conjunctsThen' ttac cth g =
      th2 <- ruleCONJUNCT2 cth
      (ttac th1 `_THEN` ttac th2) g
 
-rIMPLICATE :: BoolCtxt thry => HOLTerm -> HOL cls thry HOLThm
-rIMPLICATE t = 
-    case destNeg t of
-      Just t' -> do dNot <- defNOT
-                    ruleCONV (convRAND convBETA) #<< ruleAP_THM dNot t'
-      _ -> fail "rIMPLICATE"
+ruleIMPLICATE :: BoolCtxt thry => HOLTerm -> HOL cls thry HOLThm
+ruleIMPLICATE (Neg t') = 
+    ruleCONV (convRAND convBETA) $ ruleAP_THM defNOT t'
+ruleIMPLICATE _ = fail "rule IMPLICATE"
 
 tacRightReversible :: BoolCtxt thry => Tactic cls thry
 tacRightReversible = 
     _FIRST [ tacCONJ
            , tacGEN
            , tacDISCH
-           , \ gl@(Goal _ w) -> tacCONV (Conv $ \ _ -> rIMPLICATE w) gl
+           , \ gl@(Goal _ w) -> tacCONV (Conv $ \ _ -> ruleIMPLICATE w) gl
            , tacEQ
            ]
 
@@ -54,8 +52,8 @@ tacLeftReversible th gl =
     [ conjunctsThen' tacASSUME
     , tacDISJ_CASES
     , tacCHOOSE
-    , \ thm g -> do thm' <- rIMPLICATE (concl thm)
-                    tacASSUME (fromRight $ primEQ_MP thm' thm) g
+    , \ thm g -> do thm' <- ruleIMPLICATE (concl thm)
+                    tacASSUME (primEQ_MP thm' thm) g
     , \ thm g -> do thm' <- uncurry ruleCONJ =<< ruleEQ_IMP thm
                     conjunctsThen' tacMP thm' g
     ] 
