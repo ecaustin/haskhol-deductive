@@ -40,12 +40,12 @@ ctxtClassic = extendTheory ctxtIndDefs $(thisModule') $
     do parseAsBinder "@"
        newConstant "@" "(A->bool)->A"
        mapM_ newAxiom 
-         [ ("axETA", [str| !t:A->B. (\x. t x) = t |])
+         [ ("axETA", [txt| !t:A->B. (\x. t x) = t |])
          , ("axSELECT", "!P (x:A). P x ==> P((@) P)")
          ]
        void $ newDefinition 
-         ("COND", [str| COND = \t t1 t2. @x:A. ((t <=> T) ==> (x = t1)) /\ 
-                                         ((t <=> F) ==> (x = t2)) |])
+         ("COND", [txt| COND = \t t1 t2. @x:A. ((t <=> T) ==> (x = t1)) /\ 
+                                               ((t <=> F) ==> (x = t2)) |])
 -- stage2
        extendBasicRewrites [thmSELECT_REFL, thmNOT_CLAUSE, thmCOND_CLAUSES]
 -- stage3

@@ -154,8 +154,8 @@ type Refinement cls thry =
     GoalState cls thry -> HOL cls thry (GoalState cls thry)
 
 type Tactic cls thry = Goal -> HOL cls thry (GoalState cls thry)
-type ThmTactic cls thry = HOLThm -> Tactic cls thry
-type ThmTactical cls thry = ThmTactic cls thry -> ThmTactic cls thry
+type ThmTactic thm cls thry = thm -> Tactic cls thry
+type ThmTactical thm cls thry = ThmTactic thm cls thry -> ThmTactic thm cls thry
 
 {-# INLINE nullInst #-}
 nullInst :: Instantiation
@@ -292,18 +292,13 @@ tacsequence (GS (mvs1, insts1) gls1 just1) tacl =
 -- tactic combinators
 instance Lang (Tactic cls thry) where
     _FAIL = tacFAIL
-    _NO = tacNO
-    _ORELSE = tacORELSE
-    _FIRST = tacFIRST
-    _CHANGED = tacCHANGED
-    _TRY = tacTRY
     _ALL = tacALL
+    _ORELSE = tacORELSE
+    _CHANGED = tacCHANGED
 
 -- should be just tacTHEN but there's a weird linking bug with ghci right now
 instance BoolCtxt thry => LangSeq (Tactic cls thry) where
-    _THEN = tacTHEN 
-    _REPEAT = tacREPEAT
-    _EVERY = tacEVERY
+    _THEN = tacTHEN
 
 
 tacTHEN :: BoolCtxt thry 
@@ -325,30 +320,15 @@ tacORELSE tac1 tac2 g = tac1 g <|> tac2 g
 tacFAIL :: String -> Tactic cls thry
 tacFAIL s _ = fail s 
 
-tacNO :: Tactic cls thry
-tacNO = tacFAIL "tacNO"
-
 tacALL :: Tactic cls thry
 tacALL g = return (GS nullMeta [g] justification) 
     where justification :: Justification cls thry
           justification _ [th] = return th
           justification _ _    = fail "tacALL: improper justification"
 
-tacTRY :: Tactic cls thry -> Tactic cls thry
-tacTRY tac = tac `_ORELSE` _ALL
-
-tacREPEAT :: BoolCtxt thry => Tactic cls thry -> Tactic cls thry
-tacREPEAT tac = (tac `_THEN` tacREPEAT tac) `_ORELSE` _ALL
-
-tacEVERY :: BoolCtxt thry => [Tactic cls thry] -> Tactic cls thry
-tacEVERY = foldr _THEN _ALL
-
-tacFIRST :: [Tactic cls thry] -> Tactic cls thry
-tacFIRST [] = tacFAIL "tacFIRST: empty tactic list."
-tacFIRST tacs = foldr1 _ORELSE tacs
-
-_MAP_EVERY :: BoolCtxt thry => (b -> Tactic cls thry) -> [b] -> Tactic cls thry
-_MAP_EVERY f xs = tacEVERY $ map f xs
+_MAP_EVERY :: BoolCtxt thry 
+           => ThmTactic thm cls thry -> [thm] -> Tactic cls thry
+_MAP_EVERY f xs = _EVERY $ map f xs
 
 tacCHANGED :: Tactic cls thry -> Tactic cls thry
 tacCHANGED tac g =
@@ -367,38 +347,26 @@ tacREPLICATE n tac
     | otherwise = tac `_THEN` tacREPLICATE (n - 1) tac
 
 -- combinators for theorem tacticals
-instance Lang (ThmTactical cls thry) where
+instance Lang (ThmTactical thm cls thry) where
     _FAIL = tclFAIL
-    _NO = tclNO
     _ALL = tclALL
     _ORELSE = tclORELSE
-    _FIRST = tclFIRST
     _CHANGED = tclCHANGED
-    _TRY = tclTRY
 
-instance LangSeq (ThmTactical cls thry) where
+instance LangSeq (ThmTactical thm cls thry) where
     _THEN = tclTHEN
-    _REPEAT = tclREPEAT
-    _EVERY = tclEVERY
 
-tclFAIL :: String -> ThmTactical cls thry
+tclFAIL :: String -> ThmTactical thm cls thry
 tclFAIL msg _ _ = fail msg
 
-tclNO :: ThmTactical cls thry
-tclNO = _FAIL "tclNO"
-
-tclALL :: ThmTactical cls thry
+tclALL :: ThmTactical thm cls thry
 tclALL = id
 
-tclORELSE :: ThmTactical cls thry -> ThmTactical cls thry 
-          -> ThmTactical cls thry
+tclORELSE :: ThmTactical thm cls thry -> ThmTactical thm cls thry 
+          -> ThmTactical thm cls thry
 tclORELSE ttcl1 ttcl2 ttac th g = ttcl1 ttac th g <|> ttcl2 ttac th g
 
-tclFIRST :: [ThmTactical cls thry] -> ThmTactical cls thry
-tclFIRST [] = _FAIL "tclFIRST: empty list"
-tclFIRST ttcll = foldr1 _ORELSE ttcll
-
-tclCHANGED :: ThmTactical cls thry -> ThmTactical cls thry
+tclCHANGED :: ThmTactical thm cls thry -> ThmTactical thm cls thry
 tclCHANGED ttcl ttac th g =
     do gstate@(GS meta gl _) <- ttcl ttac th g
        if meta /= nullMeta
@@ -409,22 +377,14 @@ tclCHANGED ttcl ttac th g =
                      | otherwise -> return gstate
                  _ -> return gstate
 
-tclTRY :: ThmTactical cls thry -> ThmTactical cls thry
-tclTRY ttcl = ttcl `_ORELSE` _ALL
-
-tclTHEN :: ThmTactical cls thry -> ThmTactical cls thry -> ThmTactical cls thry
+tclTHEN :: ThmTactical thm cls thry -> ThmTactical thm cls thry 
+        -> ThmTactical thm cls thry
 tclTHEN ttcl1 ttcl2 ttac = ttcl1 (ttcl2 ttac)
-
-tclREPEAT :: ThmTactical cls thry -> ThmTactical cls thry
-tclREPEAT ttcl = (ttcl `_THEN` _REPEAT ttcl) `_ORELSE` _ALL
-
-tclEVERY :: [ThmTactical cls thry] -> ThmTactical cls thry
-tclEVERY = foldr _THEN _ALL
 
 
 -- manipulation of assumption list
 tacLABEL :: (BoolCtxt thry, HOLThmRep thm cls thry) 
-         => Text -> thm -> Tactic cls thry
+         => Text -> ThmTactic thm cls thry
 tacLABEL s pthm (Goal asl w) =
     do thm <- toHThm pthm
        return . GS nullMeta [Goal ((s, thm):asl) w] $ justification thm
@@ -433,10 +393,10 @@ tacLABEL s pthm (Goal asl w) =
                                         rulePROVE_HYP thm' th
           justification _ _ _      = fail "tacLABEL: improper justification"
 
-tacASSUME :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm -> Tactic cls thry
+tacASSUME :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacASSUME = tacLABEL ""
 
-_POP_ASSUM :: ThmTactic cls thry -> Tactic cls thry
+_POP_ASSUM :: ThmTactic HOLThm cls thry -> Tactic cls thry
 _POP_ASSUM ttac (Goal ((_, th):asl) w) = ttac th (Goal asl w)
 _POP_ASSUM _ _ = fail "_POP_ASSUM: no assumption to pop"
 
@@ -446,10 +406,10 @@ _ASSUM_LIST aslfun g@(Goal asl _) = aslfun (map snd asl) g
 _POP_ASSUM_LIST :: ([HOLThm] -> Tactic cls thry) -> Tactic cls thry
 _POP_ASSUM_LIST aslfun (Goal asl w) = aslfun (map snd asl) (Goal [] w)
 
-_EVERY_ASSUM :: BoolCtxt thry => ThmTactic cls thry -> Tactic cls thry
+_EVERY_ASSUM :: BoolCtxt thry => ThmTactic HOLThm cls thry -> Tactic cls thry
 _EVERY_ASSUM ttac = _ASSUM_LIST (_MAP_EVERY ttac)
 
-_FIRST_ASSUM :: ThmTactic cls thry -> Tactic cls thry
+_FIRST_ASSUM :: ThmTactic HOLThm cls thry -> Tactic cls thry
 _FIRST_ASSUM ttac g@(Goal asl _) = tryFind (\ (_, th) -> ttac th g) asl
 
 tacRULE_ASSUM :: BoolCtxt thry 
@@ -466,7 +426,7 @@ tacASM tltac ths g@(Goal asl _) =
        tltac (map snd asl++ths') g
 
 -- basic tactic that uses a theorem equal to the goal
-tacACCEPT :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm -> Tactic cls thry
+tacACCEPT :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacACCEPT pthm (Goal _ w) = 
     do thm@(Thm _ c) <- toHThm pthm
        if c `aConv` w
@@ -532,11 +492,11 @@ tacAP_THM g = (tacMK_COMB `_THENL` [_ALL, tacREFL]) g <?> "tacAP_THM"
 tacBINOP :: BoolCtxt thry => Tactic cls thry
 tacBINOP g = (tacMK_COMB `_THENL` [tacAP_TERM, _ALL]) g <?> "tacAP_THM"
 
-tacSUBST1 :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm -> Tactic cls thry
+tacSUBST1 :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacSUBST1 th = tacCONV (convSUBS [th])
 
 tacSUBST_ALL :: (BoolCtxt thry, HOLThmRep thm cls thry) 
-             => thm -> Tactic cls thry
+             => ThmTactic thm cls thry
 tacSUBST_ALL rth =
     tacSUBST1 rth `_THEN` tacRULE_ASSUM (ruleSUBS [rth])
 
@@ -544,7 +504,7 @@ tacBETA :: BoolCtxt thry => Tactic cls thry
 tacBETA = tacCONV (convREDEPTH convBETA)
 
 tacSUBST_VAR :: (BoolCtxt thry, HOLThmRep thm cls thry) 
-             => thm -> Tactic cls thry
+             => ThmTactic thm cls thry
 tacSUBST_VAR pthm g =
     do th@(Thm asm eq) <- toHThm pthm
        case destEq eq of
@@ -575,7 +535,7 @@ tacDISCH (Goal asl (Neg ant)) =
         justification2 _ _      = fail "tacDISCH: improper justification"
 tacDISCH _ = fail "tacDISCH"
 
-tacMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm -> Tactic cls thry
+tacMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacMP pthm (Goal asl w) =
     (do thm@(Thm _ c) <- toHThm pthm
         tm <- mkImp c w
@@ -657,7 +617,7 @@ tacEXISTS ptm (Goal asl w@(Exists v bod)) =
 tacEXISTS _ _ = fail "tacEXISTS: goal not existentially quantified."
 
 tacX_CHOOSE :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
-            => tm -> thm -> Tactic cls thry
+            => tm -> ThmTactic thm cls thry
 tacX_CHOOSE ptm pthm (Goal asl w@(Exists x bod)) =
     do x' <- toHTm ptm
        xth <- toHThm pthm
@@ -676,7 +636,7 @@ tacX_CHOOSE ptm pthm (Goal asl w@(Exists x bod)) =
         justification _ _ _ _       = fail "tacX_CHOOSE: improper justification"
 tacX_CHOOSE _ _ _ = fail "tacX_CHOOSE: goal not existentially quantified."
 
-tacCHOOSE :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm -> Tactic cls thry
+tacCHOOSE :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacCHOOSE pth (Goal asl w@(Exists x _)) =
     (do xth <- toHThm pth
         let avoids = foldr (union . thmFrees . snd) 
@@ -724,23 +684,23 @@ tacDISJ_CASES pth (Goal asl w) =
                ruleDISJ_CASES dth' th1 th2
         justification _ _ _ = fail "tacDISJ_CASES: improper justification."
 
-tacCONTR :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm -> Tactic cls thry
+tacCONTR :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacCONTR cth (Goal _ w) =
     (do th <- ruleCONTR w cth
         return . GS nullMeta [] $ propagateThm th)
     <?> "tacCONTR"
 
-rawtac :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm -> Tactic cls thry
+rawtac :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 rawtac thm (Goal _ w) =
     (do ith <- rulePART_MATCH return thm w
         return . GS nullMeta [] $ propagateThm ith)
     <?> "tacACCEPT"
 
 tacMATCH_ACCEPT :: (BoolCtxt thry, HOLThmRep thm cls thry) 
-                => thm -> Tactic cls thry
+                => ThmTactic thm cls thry
 tacMATCH_ACCEPT th = _REPEAT tacGEN `_THEN` rawtac th
 
-tacMATCH_MP :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm -> Tactic cls thry
+tacMATCH_MP :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacMATCH_MP pth (Goal asl w) =
     (do th@(Thm _ tm) <- toHThm pth
         let (avs, bod) = stripForall tm
@@ -764,8 +724,8 @@ tacMATCH_MP pth (Goal asl w) =
 
 -- theorem continuations
 _CONJUNCTS_THEN2 :: (BoolCtxt thry, HOLThmRep thm cls thry) 
-                 => ThmTactic cls thry -> ThmTactic cls thry -> thm 
-                 -> Tactic cls thry
+                 => ThmTactic HOLThm cls thry -> ThmTactic HOLThm cls thry 
+                 -> ThmTactic thm cls thry
 _CONJUNCTS_THEN2 ttac1 ttac2 pth gl = 
     do cth <- toHThm pth
        (c1th, c2th) <- pairMapM primASSUME =<< destConj (concl cth)
@@ -776,40 +736,40 @@ _CONJUNCTS_THEN2 ttac1 ttac2 pth gl =
                   rulePROVE_HYP thm1 $ rulePROVE_HYP thm2 thm3
        return (GS ti gls jfn')
 
-_CONJUNCTS_THEN :: BoolCtxt thry => ThmTactical cls thry
+_CONJUNCTS_THEN :: BoolCtxt thry => ThmTactical HOLThm cls thry
 _CONJUNCTS_THEN = wComb _CONJUNCTS_THEN2
 
 _DISJ_CASES_THEN2 :: (BoolCtxt thry, HOLThmRep thm cls thry) 
-                  => ThmTactic cls thry -> ThmTactic cls thry 
-                  -> thm -> Tactic cls thry
+                  => ThmTactic HOLThm cls thry -> ThmTactic HOLThm cls thry 
+                  -> ThmTactic thm cls thry
 _DISJ_CASES_THEN2 ttac1 ttac2 cth =
   tacDISJ_CASES cth `_THENL` [_POP_ASSUM ttac1, _POP_ASSUM ttac2]
 
 _DISJ_CASES_THEN :: (BoolCtxt thry, HOLThmRep thm cls thry) 
-                 => ThmTactic cls thry -> thm -> Tactic cls thry
+                 => ThmTactic HOLThm cls thry -> ThmTactic thm cls thry
 _DISJ_CASES_THEN = wComb _DISJ_CASES_THEN2
 
-_DISCH_THEN :: BoolCtxt thry => ThmTactic cls thry -> Tactic cls thry
+_DISCH_THEN :: BoolCtxt thry => ThmTactic HOLThm cls thry -> Tactic cls thry
 _DISCH_THEN ttac = tacDISCH `_THEN` _POP_ASSUM ttac
 
 _X_CHOOSE_THEN :: (BoolCtxt thry, HOLTermRep tm cls thry, 
-                   HOLThmRep thm cls thry) => tm -> ThmTactic cls thry -> thm 
-               -> Tactic cls thry
+                   HOLThmRep thm cls thry) 
+               => tm -> ThmTactic HOLThm cls thry -> ThmTactic thm cls thry
 _X_CHOOSE_THEN tm ttac thm = tacX_CHOOSE tm thm `_THEN` _POP_ASSUM ttac
 
-_CHOOSE_THEN :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic cls thry
-             -> thm -> Tactic cls thry
+_CHOOSE_THEN :: (BoolCtxt thry, HOLThmRep thm cls thry) 
+             => ThmTactic HOLThm cls thry -> ThmTactic thm cls thry
 _CHOOSE_THEN ttac th = tacCHOOSE th `_THEN` _POP_ASSUM ttac
 
 -- some derived tactics
-_STRIP_THM_THEN :: BoolCtxt thry => ThmTactical cls thry
+_STRIP_THM_THEN :: BoolCtxt thry => ThmTactical HOLThm cls thry
 _STRIP_THM_THEN = 
     _FIRST [ _CONJUNCTS_THEN
            , _DISJ_CASES_THEN
            , _CHOOSE_THEN
            ]
 
-_ANTE_RES_THEN :: BoolCtxt thry => ThmTactical cls thry
+_ANTE_RES_THEN :: BoolCtxt thry => ThmTactical HOLThm cls thry
 _ANTE_RES_THEN ttac ante = _ASSUM_LIST $ \ asl g -> 
     do tacs <- mapFilterM (\ imp -> do th' <- ruleMATCH_MP imp ante
                                        return (ttac th')) asl
@@ -817,32 +777,37 @@ _ANTE_RES_THEN ttac ante = _ASSUM_LIST $ \ asl g ->
           then fail "_ANTE_RES_THEN"
           else _EVERY tacs g
 
-tacSTRIP_ASSUME :: BoolCtxt thry => ThmTactic cls thry
-tacSTRIP_ASSUME = 
-    _REPEAT _STRIP_THM_THEN
-    (\ gth -> _FIRST [tacCONTR gth, tacACCEPT gth,
-                      tDISCARD_TAC gth, tacASSUME gth])
-  where tDISCARD_TAC :: ThmTactic cls thry
-        tDISCARD_TAC th g@(Goal asl _) =
-            let tm = concl th in
+tacSTRIP_ASSUME :: (BoolCtxt thry, HOLThmRep thm cls thry) 
+                => ThmTactic thm cls thry
+tacSTRIP_ASSUME pthm g =
+    do thm <- toHThm pthm 
+       (_REPEAT _STRIP_THM_THEN
+        (\ gth -> _FIRST [tacCONTR gth, tacACCEPT gth,
+                          tacDISCARD gth, tacASSUME gth])) thm g
+  where tacDISCARD :: ThmTactic HOLThm cls thry
+        tacDISCARD thm gl@(Goal asl _) =
+            let tm = concl thm in
               if any (aConv tm . concl . snd) asl
-              then _ALL g
-              else fail "tDISCARD_TAC: not already present"
+                 then _ALL gl
+                 else fail "tacDISCARD: not already present."
 
-tacSTRUCT_CASES :: BoolCtxt thry => ThmTactic cls thry
-tacSTRUCT_CASES = 
-    _REPEAT _STRIP_THM_THEN 
-    (\ th -> tacSUBST1 th `_ORELSE` tacASSUME th)
+tacSTRUCT_CASES :: (BoolCtxt thry, HOLThmRep thm cls thry) 
+                => ThmTactic thm cls thry
+tacSTRUCT_CASES pthm g =
+    do thm <- toHThm pthm 
+       (_REPEAT _STRIP_THM_THEN 
+        (\ th -> tacSUBST1 th `_ORELSE` tacASSUME th)) thm g
 
 tacSTRIP :: BoolCtxt thry => Tactic cls thry
 tacSTRIP g =
     _STRIP_GOAL_THEN tacSTRIP_ASSUME g <?> "tacSTRIP"
 
-_STRIP_GOAL_THEN :: BoolCtxt thry => ThmTactic cls thry -> Tactic cls thry
+_STRIP_GOAL_THEN :: BoolCtxt thry 
+                 => ThmTactic HOLThm cls thry -> Tactic cls thry
 _STRIP_GOAL_THEN ttac = _FIRST [tacGEN, tacCONJ, _DISCH_THEN ttac]
 
-_UNDISCH_THEN :: HOLTermRep tm cls thry => tm -> ThmTactic cls thry 
-              -> Tactic cls thry
+_UNDISCH_THEN :: HOLTermRep tm cls thry 
+              => tm -> ThmTactic HOLThm cls thry -> Tactic cls thry
 _UNDISCH_THEN _ _ (Goal [] _) = 
     fail "_UNDISCH_THEN: goal with empty assumption list."
 _UNDISCH_THEN ptm ttac (Goal asl w) = note "_UNDISCH_THEN" $
@@ -850,12 +815,12 @@ _UNDISCH_THEN ptm ttac (Goal asl w) = note "_UNDISCH_THEN" $
        (thp, asl') <- remove (\ (_, th) -> aConv (concl th) tm) asl
        ttac (snd thp) $ Goal asl' w
 
-_FIRST_X_ASSUM :: ThmTactic cls thry -> Tactic cls thry
+_FIRST_X_ASSUM :: ThmTactic HOLThm cls thry -> Tactic cls thry
 _FIRST_X_ASSUM ttac = _FIRST_ASSUM (\ th -> _UNDISCH_THEN (concl th) ttac)
 
 -- subgoaling
 _SUBGOAL_THEN :: HOLTermRep tm cls thry 
-              => tm -> ThmTactic cls thry -> Tactic cls thry
+              => tm -> ThmTactic HOLThm cls thry -> Tactic cls thry
 _SUBGOAL_THEN ptm ttac g@(Goal asl _) =
     (do wa <- toHTm ptm 
         wath <- primASSUME wa
@@ -880,17 +845,20 @@ tacX_META_EXISTS ptm (Goal asl w@(Exists v bod)) = note "tacX_META_EXISTS" $
 tacX_META_EXISTS _ _ = 
     fail "tacX_META_EXISTS: goal not existentially quantified."
 
-tacMETA_SPEC :: (BoolCtxt thry, HOLTermRep tm cls thry) 
-             => tm -> ThmTactic cls thry
-tacMETA_SPEC ptm thm (Goal asl w) = note "tacMETA_SPEC" $
+tacMETA_SPEC :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
+             => tm -> ThmTactic thm cls thry
+tacMETA_SPEC ptm pthm (Goal asl w) = note "tacMETA_SPEC" $
     do t <- toHTm ptm
+       thm <- toHThm pthm
        sth <- ruleSPEC t thm
-       return . GS ([t], nullInst) [Goal (("", sth):asl) w] $ justification t
-  where justification :: BoolCtxt thry => HOLTerm -> Justification cls thry
-        justification t i [th] = 
+       return . GS ([t], nullInst) [Goal (("", sth):asl) w] $ 
+                  justification t thm
+  where justification :: BoolCtxt thry 
+                      => HOLTerm -> HOLThm -> Justification cls thry
+        justification t thm i [th] = 
             do thm' <- ruleSPEC (instantiate i t) thm
                rulePROVE_HYP thm' th
-        justification _ _ _    = fail "tacMETA_SPEC: improper justification"
+        justification _ _ _ _      = fail "tacMETA_SPEC: improper justification"
 
 -- tactic proofs
 mkGoalstate :: BoolCtxt thry => Goal -> HOL cls thry (GoalState cls thry)

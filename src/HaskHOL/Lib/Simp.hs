@@ -72,6 +72,7 @@ module HaskHOL.Lib.Simp
        , tacASM_REWRITE
        , tacASM_REWRITE_NIL
        , tacPURE_ONCE_ASM_REWRITE
+       , tacPURE_ONCE_ASM_REWRITE_NIL
        , tacONCE_ASM_REWRITE
        , convGEN_SIMPLIFY
        , convONCE_SIMPLIFY
@@ -834,8 +835,13 @@ tacASM_REWRITE_NIL :: BoolCtxt thry => Tactic cls thry
 tacASM_REWRITE_NIL = tacASM_REWRITE ([] :: [HOLThm])
 
 
-tacPURE_ONCE_ASM_REWRITE :: BoolCtxt thry => [HOLThm] -> Tactic cls thry
+tacPURE_ONCE_ASM_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) 
+                         => [thm] -> Tactic cls thry
 tacPURE_ONCE_ASM_REWRITE = tacASM tacPURE_ONCE_REWRITE
+
+tacPURE_ONCE_ASM_REWRITE_NIL :: BoolCtxt thry => Tactic cls thry
+tacPURE_ONCE_ASM_REWRITE_NIL = tacPURE_ONCE_ASM_REWRITE ([] :: [HOLThm])
+
 
 tacONCE_ASM_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) 
                     => [thm] -> Tactic cls thry 

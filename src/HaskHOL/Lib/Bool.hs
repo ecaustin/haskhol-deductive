@@ -81,6 +81,8 @@ module HaskHOL.Lib.Bool
       -- * Additional Definitions for Type Quantification
     , defTY_FORALL
     , defTY_EXISTS
+      -- * Misc terms
+    , tmPred
     ) where
 
 import HaskHOL.Core

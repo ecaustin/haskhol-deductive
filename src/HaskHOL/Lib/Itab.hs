@@ -19,7 +19,7 @@ import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Tactics
 
 
-tacUNIFY_ACCEPT :: [HOLTerm] -> ThmTactic cls thry
+tacUNIFY_ACCEPT :: [HOLTerm] -> ThmTactic HOLThm cls thry
 tacUNIFY_ACCEPT mvs th (Goal _ w) =
     do insts <- termUnify mvs (concl th) w
        return (GS ([], insts) []
@@ -27,7 +27,7 @@ tacUNIFY_ACCEPT mvs th (Goal _ w) =
                             ruleINSTANTIATE i th'))
 
 _CONJUNCTS_THEN' :: (BoolCtxt thry, HOLThmRep thm cls thry) 
-                 => ThmTactic cls thry -> thm -> Tactic cls thry
+                 => ThmTactic HOLThm cls thry -> thm -> Tactic cls thry
 _CONJUNCTS_THEN' ttac cth g =
   do th1 <- ruleCONJUNCT1 cth
      th2 <- ruleCONJUNCT2 cth
@@ -47,7 +47,7 @@ tacRIGHT_REVERSIBLE =
            , tacEQ
            ]
 
-tacLEFT_REVERSIBLE :: BoolCtxt thry => ThmTactic cls thry
+tacLEFT_REVERSIBLE :: BoolCtxt thry => ThmTactic HOLThm cls thry
 tacLEFT_REVERSIBLE th gl =
   tryFind (\ ttac -> ttac th gl)
     [ _CONJUNCTS_THEN' tacASSUME
