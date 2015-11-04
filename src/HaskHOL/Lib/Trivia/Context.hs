@@ -38,10 +38,10 @@ ctxtTrivia = extendTheory ctxtClassic ($thisModule') $
 -- Stage 1
     do parseAsInfix ("o", (26, "right"))
        mapM_ newDefinition
-         [ ("o", [str| (o) (f:B->C) g = \x:A. f(g(x)) |])
-         , ("I", [str| I = \x:A. x |])
+         [ ("o", [txt| (o) (f:B->C) g = \x:A. f(g(x)) |])
+         , ("I", [txt| I = \x:A. x |])
          ]
        void $ newTypeDefinition "1" "one_ABS" "one_REP" thmEXISTS_ONE_REP
-       void $ newDefinition ("one", "one = @x:1. T")
+       void $ newDefinition ("one", [txt| one = @x:1. T |])
 -- Stage 2
        addIndDef ("1", (1, induct_one, recursion_one))

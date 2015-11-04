@@ -38,10 +38,10 @@ ctxtClassic :: TheoryPath ClassicType
 ctxtClassic = extendTheory ctxtIndDefs $(thisModule') $
 -- stage1
     do parseAsBinder "@"
-       newConstant "@" "(A->bool)->A"
+       newConstant "@" [txt| (A->bool)->A |]
        mapM_ newAxiom 
          [ ("axETA", [txt| !t:A->B. (\x. t x) = t |])
-         , ("axSELECT", "!P (x:A). P x ==> P((@) P)")
+         , ("axSELECT", [txt| !P (x:A). P x ==> P((@) P) |])
          ]
        void $ newDefinition 
          ("COND", [txt| COND = \t t1 t2. @x:A. ((t <=> T) ==> (x = t1)) /\ 

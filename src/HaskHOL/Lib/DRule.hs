@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-|
   Module:    HaskHOL.Lib.DRule
   Copyright: (c) The University of Kansas 2013
@@ -276,7 +275,7 @@ ruleINSTANTIATE_ALL i@(_, tmenv, (tys, opTys, opOps)) pthm =
                                               not(null (vs `intersect` vs'))) 
                                    opiirel
                    rhyps = tyrel `union` oprel `union` tmrel in
-                 do thm1 <- foldlM (flip ruleDISCH) thm rhyps
+                 do thm1 <- revItlistM ruleDISCH rhyps thm
                     thm2 <- ruleINSTANTIATE i thm1
                     funpowM (length rhyps) ruleUNDISCH thm2
 

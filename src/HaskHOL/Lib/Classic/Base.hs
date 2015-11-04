@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 module HaskHOL.Lib.Classic.Base where
 
 import HaskHOL.Core
@@ -9,6 +8,9 @@ import HaskHOL.Lib.Equal
 import HaskHOL.Lib.Itab
 import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Simp
+
+tmPred :: BoolCtxt thry => HOL cls thry HOLTerm
+tmPred = serve [bool| P:A->bool |]
 
 -- Stage 1
 axETA :: HOL cls thry HOLThm

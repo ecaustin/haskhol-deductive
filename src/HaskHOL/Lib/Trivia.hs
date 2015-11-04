@@ -53,5 +53,5 @@ recursion_one :: TriviaCtxt thry => HOL cls thry HOLThm
 recursion_one = Base.recursion_one
 
 thmI :: TriviaCtxt thry => HOL cls thry HOLThm
-thmI = cacheProof "thmI" ctxtTrivia $
-    prove "!x:A. I x = x" $ tacREWRITE [defI]
+thmI = cacheProof "thmI" ctxtTrivia .
+    prove [txt| !x:A. I x = x |] $ tacREWRITE [defI]

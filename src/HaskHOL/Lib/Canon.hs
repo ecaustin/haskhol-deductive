@@ -1,4 +1,4 @@
-{-# LANGUAGE ImplicitParams, PatternSynonyms, ScopedTypeVariables #-}
+{-# LANGUAGE ImplicitParams, ScopedTypeVariables #-}
 {-|
   Module:    HaskHOL.Lib.Canon
   Copyright: (c) The University of Kansas 2013
@@ -38,74 +38,90 @@ import HaskHOL.Lib.DRule
 import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Trivia
 
+tmA, tmB, tmC :: TriviaCtxt thry => HOL cls thry HOLTerm
+tmA = serve [trivia| a:bool |]
+tmB = serve [trivia| b:bool |]
+tmC = serve [trivia| c:bool |]
+tmP = serve [trivia| p:bool |]
+tmQ = serve [trivia| q:bool |]
+tmAnd = serve [trivia| (/\) |]
+tmOr = serve [trivia| (\/) |]
+
+{-
+andPTm, orPTm, notPTm, pPTm, qPTm :: TriviaCtxt thry => PTerm thry
+andPTm = [trivia| (/\) |]
+orPTm = [trivia| (\/) |]
+notPTm = [trivia| (~) |]
+pPTm = [trivia| p:bool |]
+qPTm = [trivia| q:bool |]
+-}
 
 pthNotNot :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotNot = cacheProof "pthNotNot" ctxtTrivia $ 
-    ruleTAUT "~ ~ p = p"
+    ruleTAUT [txt| ~ ~ p = p |]
 
 pthNotAnd :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotAnd = cacheProof "pthNotAnd" ctxtTrivia $ 
-    ruleTAUT [str| ~(p /\ q) <=> ~p \/ ~q |]
+    ruleTAUT [txt| ~(p /\ q) <=> ~p \/ ~q |]
 
 pthNotOr :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotOr = cacheProof "pthNotOr" ctxtTrivia $ 
-    ruleTAUT [str| ~(p \/ q) <=> ~p /\ ~q |]
+    ruleTAUT [txt| ~(p \/ q) <=> ~p /\ ~q |]
 
 pthImp :: TriviaCtxt thry => HOL cls thry HOLThm
 pthImp = cacheProof "pthImp" ctxtTrivia $ 
-    ruleTAUT [str| p ==> q <=> ~p \/ q |]
+    ruleTAUT [txt| p ==> q <=> ~p \/ q |]
 
 pthNotImp :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotImp = cacheProof "pthNotImp" ctxtTrivia $ 
-    ruleTAUT [str| ~(p ==> q) <=> p /\ ~q |]
+    ruleTAUT [txt| ~(p ==> q) <=> p /\ ~q |]
 
 pthEq :: TriviaCtxt thry => HOL cls thry HOLThm
 pthEq = cacheProof "pthEq" ctxtTrivia $ 
-    ruleTAUT [str| (p <=> q) <=> p /\ q \/ ~p /\ ~q |]
+    ruleTAUT [txt| (p <=> q) <=> p /\ q \/ ~p /\ ~q |]
 
 pthNotEq :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotEq = cacheProof "pthNotEq" ctxtTrivia $ 
-    ruleTAUT [str| ~(p <=> q) <=> p /\ ~q \/ ~p /\ q |]
+    ruleTAUT [txt| ~(p <=> q) <=> p /\ ~q \/ ~p /\ q |]
 
 pthEq' :: TriviaCtxt thry => HOL cls thry HOLThm
 pthEq' = cacheProof "pthEq'" ctxtTrivia $ 
-    ruleTAUT [str| (p <=> q) <=> (p \/ ~q) /\ (~p \/ q) |]
+    ruleTAUT [txt| (p <=> q) <=> (p \/ ~q) /\ (~p \/ q) |]
 
 pthNotEq' :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotEq' = cacheProof "pthNotEq'" ctxtTrivia $ 
-    ruleTAUT [str| ~(p <=> q) <=> (p \/ q) /\ (~p \/ ~q) |]
+    ruleTAUT [txt| ~(p <=> q) <=> (p \/ q) /\ (~p \/ ~q) |]
 
 pthNots :: TriviaCtxt thry => [HOL cls thry HOLThm]
 pthNots =
-    cacheProofs ["pthNotForall", "pthNotExists", "pthNotExu"] ctxtTrivia $
-      ruleCONJUNCTS =<< 
-        prove [str| (~((!) P) <=> ?x:A. ~(P x)) /\
+    cacheProofs ["pthNotForall", "pthNotExists", "pthNotExu"] ctxtTrivia .
+      ruleCONJUNCTS .
+        prove [txt| (~((!) P) <=> ?x:A. ~(P x)) /\
                     (~((?) P) <=> !x:A. ~(P x)) /\
                     (~((?!) P) <=> (!x:A. ~(P x)) \/ 
-                    ?x y. P x /\ P y /\ ~(y = x)) |]
-          (_REPEAT tacCONJ `_THEN`
-           tacGEN_REWRITE (convLAND . 
-                           funpow 2 convRAND) [ruleGSYM axETA] `_THEN`
-           tacREWRITE [ thmNOT_EXISTS, thmNOT_FORALL, defEXISTS_UNIQUE
-                      , thmDE_MORGAN, thmNOT_IMP ] `_THEN`
-           tacREWRITE [thmCONJ_ASSOC, thmEQ_SYM_EQ])
+                    ?x y. P x /\ P y /\ ~(y = x)) |] $
+          _REPEAT tacCONJ `_THEN`
+          tacGEN_REWRITE (convLAND . funpow 2 convRAND) [ruleGSYM axETA] `_THEN`
+          tacREWRITE [ thmNOT_EXISTS, thmNOT_FORALL, defEXISTS_UNIQUE
+                     , thmDE_MORGAN, thmNOT_IMP ] `_THEN`
+          tacREWRITE [thmCONJ_ASSOC, thmEQ_SYM_EQ])
 
 pthNotForall :: TriviaCtxt thry => HOL cls thry HOLThm
-pthNotForall = head pthNots
+pthNotForall = getProof "pthNotForall" <|> head pthNots
 
 pthNotExists :: TriviaCtxt thry => HOL cls thry HOLThm
-pthNotExists = pthNots !! 1
+pthNotExists = getProof "pthNotForall" <|> pthNots !! 1
 
 pthNotExu :: TriviaCtxt thry => HOL cls thry HOLThm
-pthNotExu = pthNots !! 2
+pthNotExu = getProof "pthNotExu" <|> pthNots !! 2
 
 pthExu :: TriviaCtxt thry => HOL cls thry HOLThm
-pthExu = cacheProof "pthExu" ctxtTrivia $
-    prove [str| ((?!) P) <=> (?x:A. P x) /\ 
+pthExu = cacheProof "pthExu" ctxtTrivia .
+    prove [txt| ((?!) P) <=> (?x:A. P x) /\ 
                 !x y. ~(P x) \/ ~(P y) \/ (y = x) |] $
       tacGEN_REWRITE (convLAND . convRAND) [ruleGSYM axETA] `_THEN`
       tacREWRITE [ defEXISTS_UNIQUE
-                 , ruleTAUT [str| a /\ b ==> c <=> ~a \/ ~b \/ c |] ] `_THEN`
+                 , ruleTAUT [txt| a /\ b ==> c <=> ~a \/ ~b \/ c |] ] `_THEN`
       tacREWRITE [thmEQ_SYM_EQ]
 
 convPRESIMP :: ClassicCtxt thry => Conversion cls thry 
@@ -119,29 +135,26 @@ convPRESIMP = Conv $ \ tm ->
       runConv (convGEN_REWRITE convTOP_DEPTH ths) tm
 
 ruleCONJ_ACI :: BoolCtxt thry => HOLTerm -> HOL cls thry HOLThm
-ruleCONJ_ACI fm =
-    let (p, p') = fromJust $ destEq fm in
-      if p == p' then return $! primREFL p
-      else do th <- useFun p' =<< mkFun funcEmpty #<< primASSUME p
-              th' <- useFun p =<< mkFun funcEmpty #<< primASSUME p'
-              liftM1 ruleIMP_ANTISYM (ruleDISCH_ALL th) =<< ruleDISCH_ALL th'
+ruleCONJ_ACI fm@(p := p')
+    | p == p' = primREFL p
+    | otherwise =
+        do th <- useFun p' =<< mkFun funcEmpty =<< primASSUME p
+           th' <- useFun p =<< mkFun funcEmpty =<< primASSUME p'
+           ruleIMP_ANTISYM (ruleDISCH_ALL th) $ ruleDISCH_ALL th'
   where useFun :: BoolCtxt thry => HOLTerm -> Func HOLTerm HOLThm
                -> HOL cls thry HOLThm
-        useFun tm fn
-            | isConj tm =
-                let (l, r) = fromJust $ destConj tm in
-                  do l' <- useFun l fn
-                     ruleCONJ l' =<< useFun r fn
-            | otherwise = liftO $ apply fn tm
+        useFun tm@(l :/\ r) fn
+            do l' <- useFun l fn
+               ruleCONJ l' $ useFun r fn
+        useFun tm fn = apply fn tm
 
         mkFun :: BoolCtxt thry => Func HOLTerm HOLThm -> HOLThm 
               -> HOL cls thry (Func HOLTerm HOLThm)
-        mkFun fn th =
-            let tm = concl th in
-              if isConj tm 
-              then do (th1, th2) <- ruleCONJ_PAIR th
-                      flip mkFun th1 =<< mkFun fn th2
-              else return $! (tm |-> th) fn
+        mkFun fn th@(Thm _ tm@(_ :/\ _)) =
+            do (th1, th2) <- ruleCONJ_PAIR th
+               flip mkFun th1 =<< mkFun fn th2
+        mkFun fn th = return $! (concl th |-> th) fn
+ruleCONJ_ACI _ = fail "ruleCONJ_ACI: not an equation."
 
 
 convSKOLEM :: ClassicCtxt thry => Conversion cls thry 
@@ -175,33 +188,33 @@ convPRENEX = Conv $ \ tm ->
 
 convHALF_MK_ABS :: TriviaCtxt thry => [HOLTerm] -> Conversion cls thry 
 convHALF_MK_ABS = conv
-    where conv [] = _ALL
+    where conv :: _ 
+          conv [] = _ALL
           conv (_:vs) = convGEN_REWRITE id [convHALF_MK_ABS_pth] `_THEN` 
                         convBINDER (conv vs)
         
           convHALF_MK_ABS_pth :: TriviaCtxt thry => HOL cls thry HOLThm
           convHALF_MK_ABS_pth = cacheProof "convHALF_MK_ABS_pth" ctxtTrivia $
-              prove [str| (s = \x. t x) <=> (!x. s x = t x) |] $
+              prove [txt| (s = \x. t x) <=> (!x. s x = t x) |] $
                 tacREWRITE [thmFUN_EQ]
 
-findLambda :: HOLTerm -> Maybe HOLTerm
-findLambda tm@( Abs{}) = Just tm
-findLambda ( Var{}) = Nothing
-findLambda ( Const{}) = Nothing
+findLambda :: MaybeThrow m => HOLTerm -> m HOLTerm
+findLambda tm@(Abs{}) = return tm
+findLambda (Var{}) = fail' "findLambda: var case"
+findLambda (Const{}) = fail' "findLambda: const case"
 findLambda tm = 
     if isForall tm || isExists tm || isUExists tm
     then findLambda =<< body =<< rand tm
     else case tm of
-           (Comb l r) -> case findLambda l of
-                           Nothing -> findLambda r
-                           res@Just{} -> res
-           _ -> Nothing
+           (Comb l r) -> 
+               findLambda l <|> findLambda r
+           _ -> fail' "findLambda: quantified case"
 
 elimLambda :: Conversion cls thry -> Conversion cls thry 
 elimLambda conv = Conv $ \ tm ->
     runConv conv tm <|> 
     (if isAbs tm then runConv (convABS $ elimLambda conv) tm
-     else if isVar tm ||  isConst tm then return $! primREFL tm
+     else if isVar tm || isConst tm then primREFL tm
           else if isForall tm || isExists tm || isUExists tm
                then runConv (convBINDER $ elimLambda conv) tm
                else runConv (convCOMB $ elimLambda conv) tm)
@@ -209,45 +222,44 @@ elimLambda conv = Conv $ \ tm ->
 applyPTH :: TriviaCtxt thry => HOLThm -> HOL cls thry HOLThm
 applyPTH = ruleMATCH_MP applyPTH_pth
   where applyPTH_pth :: TriviaCtxt thry => HOL cls thry HOLThm
-        applyPTH_pth = cacheProof "applyPTH_pth" ctxtTrivia $
-            prove [str| (!a. (a = c) ==> (P = Q a)) ==> 
+        applyPTH_pth = cacheProof "applyPTH_pth" ctxtTrivia .
+            prove [txt| (!a. (a = c) ==> (P = Q a)) ==> 
                         (P <=> !a. (a = c) ==> Q a) |] $
               tacSIMP [thmLEFT_FORALL_IMP, thmEXISTS_REFL]
 
 
 convLAMB1 :: TriviaCtxt thry => Conversion cls thry
-convLAMB1 = Conv $ \ tm ->
-    (case findLambda tm of
-       Just atm@( Abs v _) -> 
-           let vs = frees atm
-               vs' = vs ++ [v] in
-             do aatm <- fromRightM $ listMkAbs vs atm
-                f <- genVar $ typeOf aatm
-                eq <- mkEq f aatm
-                th1 <- liftM (fromRight . ruleSYM) $ ruleRIGHT_BETAS vs #<< primASSUME eq
-                th2 <- runConv (elimLambda $ convGEN_REWRITE id [th1]) tm
-                th3 <- applyPTH =<< ruleGEN f =<< ruleDISCH_ALL th2
-                ruleCONV (convRAND . convBINDER . convLAND $ convHALF_MK_ABS vs') th3
-       _ -> fail "")
-    <?> "convLAMB1"
+convLAMB1 = Conv $ \ tm -> note "convLAMB1" $
+    case runCatch $ findLambda tm of
+      (Right atm@(Abs v _)) -> 
+          let vs = frees atm
+              vs' = vs ++ [v] in
+            do aatm <- listMkAbs vs atm
+               f <- genVar $ typeOf aatm
+               eq <- mkEq f aatm
+               th1 <- ruleSYM . ruleRIGHT_BETAS vs $ primASSUME eq
+               th2 <- runConv (elimLambda $ convGEN_REWRITE id [th1]) tm
+               th3 <- applyPTH =<< ruleGEN f (ruleDISCH_ALL th2)
+               ruleCONV (convRAND . convBINDER . 
+                         convLAND $ convHALF_MK_ABS vs') th3
+       _ -> fail "not an abstraction."
 
 convLAMBDA_ELIM :: TriviaCtxt thry => Conversion cls thry
-convLAMBDA_ELIM = conv
-    where conv = Conv $ \ tm -> runConv (convLAMB1 `_THEN` conv) tm
-                                 <|> (return $! primREFL tm)
+convLAMBDA_ELIM = Conv $ \ tm -> 
+    runConv (convLAMB1 `_THEN` convLAMBDA_ELIM) tm
+    <|> primREFL tm
 
 -- eliminate select terms from a goal
 
 selectElimThm :: TriviaCtxt thry => HOLTerm 
               -> HOL cls thry HOLThm
-selectElimThm ( Comb ( Const "@" _) atm@( Abs bv _)) =
-    do pth <- selectElimThm_pth
-       ptm <- serve [trivia| P:A->bool |]
-       ruleCONV (convLAND convBETA) #<< 
-         rulePINST [(tyA, typeOf bv)] [(ptm, atm)] pth
+selectElimThm (Comb (Const "@" _) atm@(Abs bv _)) =
+    ruleCONV (convLAND convBETA) $ 
+      rulePINST [(tyA, typeOf bv)] 
+                [(serve [trivia| P:A->bool |], atm)] selectElimThm_pth
   where selectElimThm_pth :: TriviaCtxt thry => HOL cls thry HOLThm
-        selectElimThm_pth = cacheProof "selectElimThm_pth" ctxtTrivia $
-            prove "(P:A->bool)((@) P) <=> (?) P" $
+        selectElimThm_pth = cacheProof "selectElimThm_pth" ctxtTrivia .
+            prove [txt| (P:A->bool)((@) P) <=> (?) P |] $
               tacREWRITE [thmEXISTS] `_THEN`
               tacBETA `_THEN`
               tacREFL
@@ -260,51 +272,50 @@ convSELECT_ELIM = Conv $ \ tm ->
        runConv (convPURE_REWRITE ths) tm
 
 selectAxThm :: TriviaCtxt thry => HOLTerm -> HOL cls thry HOLThm
-selectAxThm ( Comb ( Const "@" _) atm@( Abs bv _)) =
+selectAxThm (Comb (Const "@" _) atm@(Abs bv _)) =
     let fvs = frees atm in
-      do pth <- selectAxThm_pth
-         ptm <- serve [trivia| P:A->bool |]
-         let th1 = fromJust $ rulePINST [(tyA, typeOf bv)] [(ptm, atm)] pth
+      do th1 <- rulePINST [(tyA, typeOf bv)] 
+                          [(serve [trivia| P:A->bool |], atm)] selectAxThm_pth
          th2 <- ruleCONV (convBINDER $ convBINOP convBETA) th1
          ruleGENL fvs th2
   where selectAxThm_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         selectAxThm_pth = cacheProof "selectAxThm_pth" ctxtTrivia $
-            ruleISPEC "P:A->bool" axSELECT
+            ruleISPEC [txt| P:A->bool |] axSELECT
 selectAxThm _ = fail "selectAxThm: not a select term"
 
 iconvSELECT_ELIM :: TriviaCtxt thry => Conversion cls thry
 iconvSELECT_ELIM = Conv $ \ tm ->
-    (do t <- fromJustM $ findTerm isSelect tm
+    (do t <- findTerm isSelect tm
         th1 <- selectAxThm t
         itm <- mkImp (concl th1) tm
-        ith <- fromRightM $ primASSUME itm
+        ith <- primASSUME itm
         th2 <- ruleDISCH_ALL =<< ruleMP ith th1
         let fvs = frees t
         fty <- foldrM (mkFunTy . typeOf) (typeOf t) fvs
         fn <- genVar fty
-        atm <- fromRightM $ listMkAbs fvs t
+        atm <- listMkAbs fvs t
         rawdef <- mkEq fn atm
-        def <- ruleGENL fvs =<< liftM (fromRight . ruleSYM) (ruleRIGHT_BETAS fvs #<< primASSUME rawdef)
-        l <- fromJustM . lHand $ concl th2
+        def <- ruleGENL fvs . ruleSYM . ruleRIGHT_BETAS fvs $ primASSUME rawdef
+        l <- lHand $ concl th2
         th3 <- runConv (convPURE_REWRITE [def]) l
-        r <- fromJustM . rand $ concl th3
+        r <- rand $ concl th3
         gtm <- mkForall fn r
-        th4 <- fromRightM $ ruleSYM th3
-        th5 <- ruleSPEC fn #<< primASSUME gtm
-        th6 <- fromRightM $ primEQ_MP th4 th5
+        th4 <- ruleSYM th3
+        th5 <- ruleSPEC fn $ primASSUME gtm
+        th6 <- primEQ_MP th4 th5
         th7 <- ruleDISCH gtm th6
         th8 <- ruleIMP_TRANS th7 th2
         th9 <- ruleDISCH rawdef th8
-        ruleMP (fromJust $ primINST [(fn, atm)] th9) $ primREFL atm)
+        ruleMP (primINST [(fn, atm)] th9) $ primREFL atm)
     <?> "iconvSELECT_ELIM"
 
 iconvSELECT_ELIMS :: TriviaCtxt thry => Conversion cls thry
 iconvSELECT_ELIMS = Conv $ \ tm ->
     (do th <- runConv iconvSELECT_ELIM tm
-        tm' <- fromJustM . lHand $ concl th
+        tm' <- lHand $ concl th
         th2 <- runConv iconvSELECT_ELIM tm'
         ruleIMP_TRANS th2 th)
-    <|> (ruleDISCH tm #<< primASSUME tm)
+    <|> (ruleDISCH tm $ primASSUME tm)
 
 tacSELECT_ELIM :: TriviaCtxt thry => Tactic cls thry
 tacSELECT_ELIM = 
@@ -314,42 +325,47 @@ tacSELECT_ELIM =
 
 -- eliminate conditionals 
 findConditional :: [HOLTerm] -> HOLTerm -> Maybe HOLTerm   
-findConditional fvs tm@( Comb s t)
+findConditional fvs tm@(Comb s t)
     | isCond tm =
         do freesL <- liftM frees $ lHand s
            if null (freesL `intersect` fvs)
               then return tm
               else findConditional fvs s <|> findConditional fvs t
     | otherwise = findConditional fvs s <|> findConditional fvs t
-findConditional fvs ( Abs x t) = findConditional (x:fvs) t
+findConditional fvs (Abs x t) = findConditional (x:fvs) t
 findConditional _ _ = Nothing
 
 condsElimConv :: TriviaCtxt thry => Bool -> Conversion cls thry    
 condsElimConv dfl = Conv $ \ tm ->
-    (case findConditional [] tm of
-       Just t -> 
-         do p <- fromJustM $ lHand =<< rator t
+    (case runCatch $ findConditional [] tm of
+       Right t -> 
+         do p <- lHand =<< rator t
             prosimps <- basicNet
-            falseTm <- serve [trivia| F |]
-            trueTm <- serve [trivia| T |]
-            thNew <- if p == falseTm || p == trueTm
-                     then runConv (convDEPTH $ convREWRITES prosimps) tm
-                     else do asm0 <- mkEq p falseTm
-                             ath0 <- fromRightM $ primASSUME asm0
+            let conv = convDEPTH (convREWRITES prosimps)
+            thNew <- case p of
+                       F -> runConv conv tm
+                       T -> runConv conv tm
+                       _ ->
+                          do asm0 <- mkEq p falseTm
+                             ath0 <- primASSUME asm0
                              asm1 <- mkEq p trueTm
-                             ath1 <- fromRightM $ primASSUME asm1
-                             simp0 <- liftO $ netOfThm False ath0 prosimps
-                             simp1 <- liftO $ netOfThm False ath1 prosimps
-                             th0 <- ruleDISCH asm0 =<< runConv (convDEPTH $ convREWRITES simp0) tm
-                             th1 <- ruleDISCH asm1 =<< runConv (convDEPTH $ convREWRITES simp1) tm
+                             ath1 <- primASSUME asm1
+                             simp0 <- netOfThm False ath0 prosimps
+                             simp1 <- netOfThm False ath1 prosimps
+                             th0 <- ruleDISCH asm0 $ 
+                                     runConv (convDEPTH $ convREWRITES simp0) tm
+                             th1 <- ruleDISCH asm1 $
+                                     runConv (convDEPTH $ convREWRITES simp1) tm
                              th2 <- ruleCONJ th0 th1
-                             th3 <- liftM1 ruleMATCH_MP (if dfl then convCONDS_ELIM_thCond else convCONDS_ELIM_thCond') th2
+                             let convTh = if dfl then convCONDS_ELIM_thCond
+                                          else convCONDS_ELIM_thCond'
+                             th3 <- ruleMATCH_MP convTh th2
                              let cnv = _TRY (convREWRITES prosimps)
                                  proptsimpConv = convBINOP cnv `_THEN` cnv
-                             rth <- runConv proptsimpConv =<< (fromJustM . rand $ concl th3)
-                             fromRightM $ primTRANS th3 rth
+                             rth <- runConv proptsimpConv =<< rand (concl th3)
+                             primTRANS th3 rth
             ruleCONV (convRAND $ condsElimConv dfl) thNew
-       Nothing
+       _
          | isNeg tm ->
              runConv (convRAND . condsElimConv $ not dfl) tm
          | isConj tm || isDisj tm ->
@@ -361,22 +377,22 @@ condsElimConv dfl = Conv $ \ tm ->
              runConv (convBINDER $ condsElimConv False) tm
          | isExists tm || isUExists tm ->
              runConv (convBINDER $ condsElimConv True) tm
-         | otherwise -> return $! primREFL tm)
+         | otherwise -> primREFL tm)
     <?> "condsElimConv"
   where convCONDS_ELIM_thCond :: TriviaCtxt thry => HOL cls thry HOLThm
-        convCONDS_ELIM_thCond = cacheProof "convCONDS_ELIM_thCond" ctxtTrivia $
-            prove [str| ((b <=> F) ==> x = x0) /\ 
+        convCONDS_ELIM_thCond = cacheProof "convCONDS_ELIM_thCond" ctxtTrivia .
+            prove [txt| ((b <=> F) ==> x = x0) /\ 
                         ((b <=> T) ==> x = x1) ==> 
                         x = (b /\ x1 \/ ~b /\ x0) |] $
-              tacBOOL_CASES "b:bool" `_THEN` tacASM_REWRITE_NIL
+              tacBOOL_CASES [txt| b:bool |] `_THEN` tacASM_REWRITE_NIL
 
         convCONDS_ELIM_thCond' :: TriviaCtxt thry => HOL cls thry HOLThm
         convCONDS_ELIM_thCond' = 
-            cacheProof "convCONDS_ELIM_thCond'" ctxtTrivia $
-              prove [str| ((b <=> F) ==> x = x0) /\ 
+            cacheProof "convCONDS_ELIM_thCond'" ctxtTrivia ,
+              prove [txt| ((b <=> F) ==> x = x0) /\ 
                           ((b <=> T) ==> x = x1) ==> 
                           x = ((~b \/ x1) /\ (b \/ x0)) |] $
-                tacBOOL_CASES "b:bool" `_THEN` tacASM_REWRITE_NIL
+                tacBOOL_CASES [txt| b:bool |] `_THEN` tacASM_REWRITE_NIL
 
 
 convCONDS_ELIM :: TriviaCtxt thry => Conversion cls thry
@@ -387,203 +403,186 @@ convCONDS_CELIM = condsElimConv False
 
 -- Weak DNF
 distributeDNF :: TriviaCtxt thry => Conversion cls thry
-distributeDNF = Conv $ \ tm ->
-    (do tmA <- serve [trivia| a:bool |]
-        tmB <- serve [trivia| b:bool |]
-        tmC <- serve [trivia| c:bool |]
-        case tm of
-          (Comb (Comb (Const "/\\" _) a) (Comb (Comb (Const "\\/" _) b) c)) ->
-              do pth <- convWEAK_DNF_pth1
-                 th <- liftO $ primINST [(tmA, a), (tmB, b), (tmC, c)] pth
-                 th' <- runConv (convBINOP distributeDNF) #<< rand (concl th)
-                 liftO $ primTRANS th th'
-          (Comb (Comb (Const "/\\" _) (Comb (Comb (Const "\\/" _) a) b)) c) ->
-              do pth <- convWEAK_DNF_pth2
-                 th <- liftO $ primINST [(tmA, a), (tmB, b), (tmC, c)] pth
-                 th' <- runConv (convBINOP distributeDNF) #<< rand (concl th)
-                 liftO $ primTRANS th th'
-          _ -> return $! primREFL tm)
-    <?> "distributeDNF"
+distributeDNF = Conv $ \ tm -> note "distributeDNF" $
+    case tm of
+      (a :/\ (b :\/ c)) ->
+          do th <- primINST [(tmA, a), (tmB, b), (tmC, c)] convWEAK_DNF_pth1
+             th' <- runConv (convBINOP distributeDNF) =<< rand (concl th)
+             primTRANS th th'
+      ((a :\/ b) :/\ c) ->
+          do th <- primINST [(tmA, a), (tmB, b), (tmC, c)] convWEAK_DNF_pth2
+             th' <- runConv (convBINOP distributeDNF) =<< rand (concl th)
+             primTRANS th th'
+      _ -> primREFL tm
   where convWEAK_DNF_pth1 :: TriviaCtxt thry => HOL cls thry HOLThm
         convWEAK_DNF_pth1 = cacheProof "convWEAK_DNF_pth1" ctxtTrivia $
-            ruleTAUT [str| a /\ (b \/ c) <=> a /\ b \/ a /\ c |]
+            ruleTAUT [txt| a /\ (b \/ c) <=> a /\ b \/ a /\ c |]
 
         convWEAK_DNF_pth2 :: TriviaCtxt thry => HOL cls thry HOLThm
         convWEAK_DNF_pth2 = cacheProof "convWEAK_DNF_pth2" ctxtTrivia $
-            ruleTAUT [str| (a \/ b) /\ c <=> a /\ c \/ b /\ c |]
+            ruleTAUT [txt| (a \/ b) /\ c <=> a /\ c \/ b /\ c |]
 
 convWEAK_DNF :: TriviaCtxt thry => Conversion cls thry
-convWEAK_DNF = Conv $ \ tm ->
+convWEAK_DNF = Conv $ \ tm -> note "convWEAK_DNF" $
     case tm of
-      (Comb (Const "!" _) Abs{}) -> runConv (convBINDER convWEAK_DNF) tm
-      (Comb (Const "?" _) Abs{}) -> runConv (convBINDER convWEAK_DNF) tm
-      (Comb (Comb (Const "\\/" _) _) _) -> runConv (convBINOP convWEAK_DNF) tm
-      (Comb (Comb op@(Const "/\\" _) l) r) ->
+      Forall{} -> runConv (convBINDER convWEAK_DNF) tm
+      Exists{} -> runConv (convBINDER convWEAK_DNF) tm
+      (_ :\/ _) -> runConv (convBINOP convWEAK_DNF) tm
+      (l :/\ r) ->
           do l' <- runConv convWEAK_DNF l
              r' <- runConv convWEAK_DNF r
-             th <- liftO $ liftM1 primMK_COMB (ruleAP_TERM op l') r'
-             th' <- runConv distributeDNF #<< rand (concl th)
-             liftO $ primTRANS th th'
-      _ -> return $! primREFL tm
+             th <- primMK_COMB (ruleAP_TERM [trivia| (/\) |] l') r'
+             th' <- runConv distributeDNF =<< rand (concl th)
+             primTRANS th th'
+      _ -> primREFL tm
 
 -- Weak CNF
 distribute :: TriviaCtxt thry => Conversion cls thry
-distribute = Conv $ \ tm ->
-    (do aTm <- serve [trivia| a:bool |]
-        bTm <- serve [trivia| b:bool |]
-        cTm <- serve [trivia| c:bool |]
-        case tm of
-          (Comb ( Comb ( Const "\\/" _) a) 
-           ( Comb ( Comb ( Const "/\\" _) b) c)) ->
-              do pth <- distribute_pth1
-                 let th = fromJust $ primINST [(aTm, a), (bTm, b), (cTm, c)] pth
-                 rth <- runConv (convBINOP distribute) =<< (fromJustM . rand $ concl th)
-                 fromRightM $ primTRANS th rth
-          (Comb ( Comb ( Const "\\/" _) 
-                 ( Comb ( Comb ( Const "/\\" _) a) b)) c) ->
-              do pth <- distribute_pth2
-                 let th = fromJust $ primINST [(aTm, a), (bTm, b), (cTm, c)] pth
-                 rth <- runConv (convBINOP distribute) =<< (fromJustM . rand $ concl th)
-                 fromRightM $ primTRANS th rth
-          _ -> return $! primREFL tm)
-    <?> "distribute"
+distribute = Conv $ \ tm -> note "distribute" $
+    case tm of
+      (a :\/ (b :/\ c)) ->
+          do th <- primINST [(tmA, a), (tmB, b), (tmC, c)] distribute_pth1
+             rth <- runConv (convBINOP distribute) =<< rand (concl th)
+             primTRANS th rth
+      ((a :/\ b) :\/ c)
+          do th <- primINST [(tmA, a), (tmB, b), (tmC, c)] distribute_pth2
+             rth <- runConv (convBINOP distribute) =<< rand (concl th)
+             primTRANS th rth
+      _ -> primREFL tm
   where distribute_pth1 :: TriviaCtxt thry => HOL cls thry HOLThm
         distribute_pth1 = cacheProof "distribute_pth1" ctxtTrivia $
-            ruleTAUT [str| a \/ (b /\ c) <=> (a \/ b) /\ (a \/ c) |]
+            ruleTAUT [txt| a \/ (b /\ c) <=> (a \/ b) /\ (a \/ c) |]
 
         distribute_pth2 :: TriviaCtxt thry => HOL cls thry HOLThm
         distribute_pth2 = cacheProof "distribute_pth2" ctxtTrivia $
-            ruleTAUT [str| (a /\ b) \/ c <=> (a \/ c) /\ (b \/ c) |]
+            ruleTAUT [txt| (a /\ b) \/ c <=> (a \/ c) /\ (b \/ c) |]
 
 
 
 convWEAK_CNF :: TriviaCtxt thry => Conversion cls thry
-convWEAK_CNF = Conv $ \ tm ->
-    (case tm of
-       (Comb ( Const "!" _) ( Abs{})) -> runConv (convBINDER convWEAK_CNF) tm
-       (Comb ( Const "?" _) ( Abs{})) -> runConv (convBINDER convWEAK_CNF) tm
-       (Comb ( Comb ( Const "/\\" _) _) _) -> runConv (convBINOP convWEAK_CNF) tm
-       (Comb ( Comb op@( Const "\\/" _) l) r) -> 
-           do lth <- runConv convWEAK_CNF l
-              rth <- runConv convWEAK_CNF r
-              th <- fromRightM $ flip primMK_COMB rth =<< ruleAP_TERM op lth
-              rtm <- fromJustM . rand $ concl th
-              th2 <- runConv distribute rtm
-              fromRightM $ primTRANS th th2
-       _ -> return $! primREFL tm)
-    <?> "convWEAK_CNF"
+convWEAK_CNF = Conv $ \ tm -> note "convWEAK_CNF" $
+    case tm of
+      Forall{} -> runConv (convBINDER convWEAK_CNF) tm
+      Exists{} -> runConv (convBINDER convWEAK_CNF) tm
+      (_ :/\ _) -> runConv (convBINOP convWEAK_CNF) tm
+      (l :\/ r) -> 
+          do lth <- runConv convWEAK_CNF l
+             rth <- runConv convWEAK_CNF r
+             th <- primMK_COMB (ruleAP_TERM op lth) rth
+             rtm <- rand $ concl th
+             th2 <- runConv distribute rtm
+             primTRANS th th2
+      _ -> primREFL tm
 
-distrib :: HOLTerm -> HOLTerm -> HOLTerm -> HOLTerm -> HOLThm -> HOLTerm ->
-           Either String HOLThm
-distrib op x y z th' tm@( Comb ( Comb op' ( Comb ( Comb op'' p) q)) r)
+distrib :: HOLTerm -> HOLTerm -> HOLTerm -> HOLTerm -> HOLThm -> HOLTerm 
+        -> HOL cls thry HOLThm
+distrib op x y z th' tm@(Comb (Comb op' (Comb (Comb op'' p) q)) r)
     | op' == op && op'' == op = 
-        (let th1 = fromJust $ primINST [(x, p), (y, q), (z, r)] th' in
-           case rand $ concl th1 of
-             Just ( Comb l r') -> 
-                 do th2 <- ruleAP_TERM l =<< distrib op x y z th' r'
-                    rtm <- note "" . rand $ concl th2
+        (do th1 <- primINST [(x, p), (y, q), (z, r)] th'
+           case concl th1 of
+             (Comb _ (Comb l r') -> 
+                 do th2 <- ruleAP_TERM l $ distrib op x y z th' r'
+                    rtm <- rand $ concl th2
                     th3 <- distrib op x y z th' rtm
-                    primTRANS th1 =<< primTRANS th2 th3
-             _ -> Left "")
-        <?> "distrib"
-    | otherwise = return $! primREFL tm
-distrib _ _ _ _ _ t = return $! primREFL t
+                    primTRANS th1 $ primTRANS th2 th3
+             _ -> fail "distrib"
+    | otherwise = primREFL tm
+distrib _ _ _ _ _ t = primREFL t
 
-canonAssoc :: HOLTerm -> HOLTerm -> HOLTerm -> HOLTerm -> HOLThm -> 
-              HOLTerm -> Either String HOLThm
+canonAssoc :: HOLTerm -> HOLTerm -> HOLTerm -> HOLTerm -> HOLThm -> HOLTerm 
+           -> HOL cls thry HOLThm
 canonAssoc op x y z th' tm@( Comb l@( Comb op' _) q)
     | op' == op =
-        (do th <- ruleAP_TERM l =<< canonAssoc op x y z th' q
-            r <- note "" . rand $ concl th
-            primTRANS th =<< distrib op x y z th' r)
+        (do th <- ruleAP_TERM l $canonAssoc op x y z th' q
+            r <- rand $ concl th
+            primTRANS th $ distrib op x y z th' r)
         <?> "canonAssoc"
-    | otherwise = return $! primREFL tm
-canonAssoc _ _ _ _ _ tm = return $! primREFL tm
+    | otherwise = primREFL tm
+canonAssoc _ _ _ _ _ tm = primREFL tm
 
 convASSOC :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm 
           -> Conversion cls thry
-convASSOC th = Conv $ \ tm ->
-    (do th' <- liftM (fromRight . ruleSYM) $ ruleSPEC_ALL =<< toHThm th
-        case rand $ concl th' of
-          Just ( Comb ( Comb op x) yopz) ->
-              do y <- fromJustM $ lHand yopz
-                 z <- fromJustM $ rand yopz
-                 fromRightM $ canonAssoc op x y z th' tm
-          _ -> fail "")
-    <?> "convASSOC"
+convASSOC th = Conv $ \ tm -> note "convASSOC" $
+    do th' <- ruleSYM $ ruleSPEC_ALL th
+       case rand $ concl th' of
+         (Comb _ (Comb (Comb op x) yopz)) ->
+             do y <- lHand yopz
+                z <- rand yopz
+                canonAssoc op x y z th' tm
+         _ -> fail "bad term structure."
 
-getHeads :: [HOLTerm] -> HOLTerm -> ([(HOLTerm, Int)], [(HOLTerm, Int)]) ->
-            ([(HOLTerm, Int)], [(HOLTerm, Int)])
+getHeads :: [HOLTerm] -> HOLTerm -> ([(HOLTerm, Int)], [(HOLTerm, Int)]) 
+         -> ([(HOLTerm, Int)], [(HOLTerm, Int)])
+getHeads lconsts tm@(Forall v bod) sofar@(cheads, vheads) =
+    getHeads (lconsts \\ [v]) bod sofar
+getHeads lconsts tm@(l :/\ r) sofar@(cheads, vheads) =
+    getHeads lconsts l (getHeads lconsts r sofar)
+getHeads lconsts tm@(l :\/ r) sofar@(cheads, vheads) =
+    getHeads lconsts l (getHeads lconsts r sofar)
+getHeads lconsts tm@(Neg tm') sofar@(cheads, vheads) =
+    getHeads lconsts tm' sofar
 getHeads lconsts tm sofar@(cheads, vheads) =
-    case destForall tm of
-      Just (v, bod) -> getHeads (lconsts \\ [v]) bod sofar
-      Nothing -> 
-          case destConj tm of
-            Just (l, r) -> getHeads lconsts l (getHeads lconsts r sofar)
-            Nothing -> 
-                case destDisj tm of
-                  Just (l, r) -> getHeads lconsts l (getHeads lconsts r sofar)
-                  Nothing ->
-                      case destNeg tm of
-                        Just tm' -> getHeads lconsts tm' sofar
-                        Nothing ->
-                            let (hop, args) = stripComb tm
-                                len = length args
-                                newHeads 
-                                    | isConst hop || hop `elem` lconsts =
-                                        (insert (hop, len) cheads, vheads)
-                                    | len > 0 =
-                                        (cheads, insert (hop, len) vheads)
-                                    | otherwise = sofar in
-                              foldr (getHeads lconsts) newHeads args
+    let (hop, args) = stripComb tm
+        len = length args
+        newHeads 
+            | isConst hop || hop `elem` lconsts =
+                (insert (hop, len) cheads, vheads)
+            | len > 0 =
+                (cheads, insert (hop, len) vheads)
+            | otherwise = sofar in
+      foldr (getHeads lconsts) newHeads args
 
-getThmHeads :: HOLThm -> ([(HOLTerm, Int)], [(HOLTerm, Int)]) ->
-               ([(HOLTerm, Int)], [(HOLTerm, Int)])
+getThmHeads :: HOLThm -> ([(HOLTerm, Int)], [(HOLTerm, Int)])
+            -> ([(HOLTerm, Int)], [(HOLTerm, Int)])
 getThmHeads th = getHeads (catFrees $ hyp th) (concl th)
 
 convAPP :: TriviaCtxt thry => Conversion cls thry
 convAPP = convREWR convAPP_pth
     where convAPP_pth :: TriviaCtxt thry => HOL cls thry HOLThm
-          convAPP_pth = cacheProof "convAPP_pth" ctxtTrivia $
-              prove "!(f:A->B) x. f x = I f x" $
+          convAPP_pth = cacheProof "convAPP_pth" ctxtTrivia .
+              prove [txt| !(f:A->B) x. f x = I f x |] $
                 tacREWRITE [thmI]
 
 convAPP_N :: TriviaCtxt thry => Int -> Conversion cls thry
-convAPP_N n =
-    if n == 1 then convAPP
-    else convRATOR (convAPP_N $ n - 1) `_THEN` convAPP 
+convAPP_N 1 = convAPP
+convAPP_N n = convRATOR (convAPP_N $ n - 1) `_THEN` convAPP 
 
 convFOL :: TriviaCtxt thry => [(HOLTerm, Int)] 
         -> Conversion cls thry
 convFOL hddata = Conv $ \ tm ->
-    if isForall tm
-    then runConv (convBINDER $ convFOL hddata) tm
-    else if isConj tm || isDisj tm
-         then runConv (convBINOP $ convFOL hddata) tm
-         else let (op, args) = stripComb tm
-                  th1 = primREFL op in
-                do th2 <- mapM (runConv (convFOL hddata)) args
-                   th <- fromRightM $ foldlM primMK_COMB th1 th2
-                   tm' <- fromJustM . rand $ concl th
-                   let n = case lookup op hddata of
-                             Just x -> length args - x
-                             Nothing -> 0
-                   if n == 0
-                      then return th
-                      else do th' <- runConv (convAPP_N n) tm'
-                              fromRightM $ primTRANS th th'
+    case tm of
+      Forall{} -> runConv (convBINDER $ convFOL hddata) tm
+      (_ :/\ _) -> runConv (convBINOP $ convFOL hddata) tm
+      (_ :\/ _) -> runConv (convBINOP $ convFOL hddata) tm
+      _ ->
+          let (op, args) = stripComb tm
+              th1 = primREFL op in
+            do th2 <- mapM (runConv (convFOL hddata)) args
+               th <- foldlM primMK_COMB th1 th2
+               tm' <- rand $ concl th
+               let n = case lookup op hddata of
+                         Just x -> length args - x
+                         Nothing -> 0
+               if n == 0
+                  then return th
+                  else primTRANS th $ runConv (convAPP_N n) tm'
 
 convGEN_FOL :: TriviaCtxt thry => ([(HOLTerm, Int)], [(HOLTerm, Int)]) 
             -> Conversion cls thry
+convGEN_FOL (cheads, []) =
+    let hops = setify $ map fst cheads
+        getMin h = let ns = mapFilter (\ (k, n) -> 
+                                       if k == h then Just n 
+                                       else Nothing) cheads in
+                     if length ns < 2 then Nothing 
+                     else Just (h, minimum ns)
+        hddata = mapFilter getMin hops in
+    convFOL hddata
 convGEN_FOL (cheads, vheads) =
-    let hddata = if null vheads
-                 then let hops = setify $ map fst cheads
-                          getMin h = let ns = mapFilter (\ (k, n) -> if k == h then Just n else Nothing) cheads in
-                                       if length ns < 2 then Nothing else Just (h, minimum ns) in
-                        mapFilter getMin hops
-                 else map (\ t -> case t of
-                                    ( Const "=" _) -> (t, 2)
-                                    _ -> (t, 0)) (setify . map fst $ vheads ++ cheads) in
+    let hddata = map (\ t -> case t of
+                               (Const "=" _) -> (t, 2)
+                               _ -> (t, 0)) 
+                   (setify . map fst $ vheads ++ cheads) in
       convFOL hddata
                      
 
@@ -593,185 +592,140 @@ tacASM_FOL gl@(Goal asl _) =
       tacRULE_ASSUM (ruleCONV $ convGEN_FOL headsp) gl
 
 -- conv NFF
-andPTm, orPTm, notPTm, pPTm, qPTm :: TriviaCtxt thry => PTerm thry
-andPTm = [trivia| (/\) |]
-orPTm = [trivia| (\/) |]
-notPTm = [trivia| (~) |]
-pPTm = [trivia| p:bool |]
-qPTm = [trivia| q:bool |]
-
 nnfDConv :: TriviaCtxt thry => Bool 
          -> (HOLTerm -> HOL cls thry (HOLThm, HOLThm)) -> HOLTerm 
          -> HOL cls thry (HOLThm, HOLThm)
-nnfDConv cf baseconvs ( Comb ( Comb ( Const "/\\" _) l) r) =
-    (do pth <- pthNotAnd
-        andTm <- serve andPTm
-        orTm <- serve orPTm
-        pTm <- serve pPTm
-        qTm <- serve qPTm
-        (thLp, thLn) <- nnfDConv cf baseconvs l
+nnfDConv cf baseconvs (l :/\ r) =
+    (do (thLp, thLn) <- nnfDConv cf baseconvs l
         (thRp, thRn) <- nnfDConv cf baseconvs r
-        let rth1 = fromJust $ primINST [(pTm, l), (qTm, r)] pth
-        fromRightM $ do lth <- ruleAP_TERM andTm thLp
-                        th1 <- primMK_COMB lth thRp
-                        rth2 <- ruleAP_TERM orTm thLn
-                        th2 <- primTRANS rth1 =<< primMK_COMB rth2 thRn
-                        return (th1, th2))
+        rth1 <- primINST [(tmP, l), (tmQ, r)] pthNotAnd
+        lth <- ruleAP_TERM tmAnd thLp
+        th1 <- primMK_COMB lth thRp
+        rth2 <- ruleAP_TERM tmOr thLn
+        th2 <- primTRANS rth1 $ primMK_COMB rth2 thRn
+        return (th1, th2))
     <?> "nnfDConv: conjunction case"
-nnfDConv cf baseconvs ( Comb ( Comb ( Const "\\/" _) l) r) =
-    (do pth <- pthNotOr
-        andTm <- serve andPTm
-        orTm <- serve orPTm
-        pTm <- serve pPTm
-        qTm <- serve qPTm
-        (thLp, thLn) <- nnfDConv cf baseconvs l
+nnfDConv cf baseconvs (l :\/ r) =
+    (do (thLp, thLn) <- nnfDConv cf baseconvs l
         (thRp, thRn) <- nnfDConv cf baseconvs r
-        let rth1 = fromJust $ primINST [(pTm, l), (qTm, r)] pth
-        fromRightM $ do lth <- ruleAP_TERM orTm thLp
-                        th1 <- primMK_COMB lth thRp
-                        rth2 <- ruleAP_TERM andTm thLn
-                        th2 <- primTRANS rth1 =<< primMK_COMB rth2 thRn
-                        return (th1, th2))
+        rth1 <- primINST [(tmP, l), (tmQ, r)] pthNotOr
+        lth <- ruleAP_TERM tmOr thLp
+        th1 <- primMK_COMB lth thRp
+        rth2 <- ruleAP_TERM tmAnd thLn
+        th2 <- primTRANS rth1 $ primMK_COMB rth2 thRn
+        return (th1, th2))
     <?> "nnfDConv: disjunction case"
-nnfDConv cf baseconvs ( Comb ( Comb ( Const "==>" _) l) r) =
-    (do pth1 <- pthImp
-        pth2 <- pthNotImp
-        andTm <- serve andPTm
-        orTm <- serve orPTm
-        pTm <- serve pPTm
-        qTm <- serve qPTm
-        (thLp, thLn) <- nnfDConv cf baseconvs l
+nnfDConv cf baseconvs (l :==> r) =
+    (do (thLp, thLn) <- nnfDConv cf baseconvs l
         (thRp, thRn) <- nnfDConv cf baseconvs r
-        let lth1 = fromJust $ primINST [(pTm, l), (qTm, r)] pth1
-        let rth1 = fromJust $ primINST [(pTm, l), (qTm, r)] pth2
-        fromRightM $ do lth2 <- ruleAP_TERM orTm thLn
-                        th1 <- primTRANS lth1 =<< primMK_COMB lth2 thRp
-                        rth2 <- ruleAP_TERM andTm thLp
-                        th2 <- primTRANS rth1 =<< primMK_COMB rth2 thRn
-                        return (th1, th2))
+        lth1 <- primINST [(tmP, l), (tmQ, r)] pthImp
+        rth1 <- primINST [(tmP, l), (tmQ, r)] pthNotImp
+        lth2 <- ruleAP_TERM tmOr thLn
+        th1 <- primTRANS lth1 $ primMK_COMB lth2 thRp
+        rth2 <- ruleAP_TERM tmAnd thLp
+        th2 <- primTRANS rth1 $ primMK_COMB rth2 thRn
+        return (th1, th2))
     <?> "nnfDConv: implication case"
-nnfDConv cf baseconvs tm@(Comb (Comb (Const "=" (TyApp f (TyApp b _ : _))) l) r)
-    | f == tyOpFun && b == tyOpBool =
-        (do andTm <- serve andPTm
-            orTm <- serve orPTm
-            pTm <- serve pPTm
-            qTm <- serve qPTm
-            (thLp, thLn) <- nnfDConv cf baseconvs l
-            (thRp, thRn) <- nnfDConv cf baseconvs r
-            if cf
-               then do pth1 <- pthEq'
-                       pth2 <- pthNotEq'
-                       let lth1 = fromJust $ primINST [(pTm, l), (qTm, r)] pth1
-                           rth1 = fromJust $ primINST [(pTm, l), (qTm, r)] pth2
-                       fromRightM $ do lth2 <- ruleAP_TERM orTm thLp
-                                       lth3 <- ruleAP_TERM andTm =<< primMK_COMB lth2 thRn
-                                       lth4 <- ruleAP_TERM orTm thLn
-                                       th1 <- primTRANS lth1 =<< primMK_COMB lth3 =<< primMK_COMB lth4 thRp
-                                       rth2 <- ruleAP_TERM orTm thLp
-                                       rth3 <- ruleAP_TERM andTm =<< primMK_COMB rth2 thRp
-                                       rth4 <- ruleAP_TERM orTm thLn
-                                       th2 <- primTRANS rth1 =<< primMK_COMB rth3 =<< primMK_COMB rth4 thRn
-                                       return (th1, th2)
-               else do pth1 <- pthEq
-                       pth2 <- pthNotEq
-                       let lth1 = fromJust $ primINST [(pTm, l), (qTm, r)] pth1
-                           rth1 = fromJust $ primINST [(pTm, l), (qTm, r)] pth2
-                       fromRightM $ do lth2 <- ruleAP_TERM andTm thLp
-                                       lth3 <- ruleAP_TERM orTm =<< primMK_COMB lth2 thRp
-                                       lth4 <- ruleAP_TERM andTm thLn
-                                       th1 <- primTRANS lth1 =<< primMK_COMB lth3 =<< primMK_COMB lth4 thRn
-                                       rth2 <- ruleAP_TERM andTm thLp
-                                       rth3 <- ruleAP_TERM orTm =<< primMK_COMB rth2 thRn
-                                       rth4 <- ruleAP_TERM andTm thLn
-                                       th2 <- primTRANS rth1 =<< primMK_COMB rth3 =<< primMK_COMB rth4 thRp
-                                       return (th1, th2))
+nnfDConv True baseconvs tm@(l := r)
+    (do (thLp, thLn) <- nnfDConv cf baseconvs l
+        (thRp, thRn) <- nnfDConv cf baseconvs r
+        lth1 <- primINST [(tmP, l), (tmQ, r)] pthEq'
+        rth1 <- primINST [(tmP, l), (tmQ, r)] pthNotEq'
+        lth2 <- ruleAP_TERM tmOr thLp
+        lth3 <- ruleAP_TERM tmAnd $ primMK_COMB lth2 thRn
+        lth4 <- ruleAP_TERM tmOr thLn
+        th1 <- primTRANS lth1 . primMK_COMB lth3 $ primMK_COMB lth4 thRp
+        rth2 <- ruleAP_TERM tmOr thLp
+        rth3 <- ruleAP_TERM tmAnd $ primMK_COMB rth2 thRp
+        rth4 <- ruleAP_TERM tmOr thLn
+        th2 <- primTRANS rth1 . primMK_COMB rth3 $ primMK_COMB rth4 thRn
+        return (th1, th2))
+    <?> "nnfDConv: true equality case"
+nnfDConv False baseconvs tm@(l := r)
+    (do (thLp, thLn) <- nnfDConv cf baseconvs l
+        (thRp, thRn) <- nnfDConv cf baseconvs r
+        lth1 <- primINST [(tmP, l), (tmQ, r)] pthEq
+        rth1 <- primINST [(tmP, l), (tmQ, r)] pthNotEq
+        lth2 <- ruleAP_TERM tmAnd thLp
+        lth3 <- ruleAP_TERM tmOr $ primMK_COMB lth2 thRp
+        lth4 <- ruleAP_TERM tmAnd thLn
+        th1 <- primTRANS lth1 . primMK_COMB lth3 $ primMK_COMB lth4 thRn
+        rth2 <- ruleAP_TERM tmAnd thLp
+        rth3 <- ruleAP_TERM tmOr $ primMK_COMB rth2 thRn
+        rth4 <- ruleAP_TERM tmAnd thLn
+        th2 <- primTRANS rth1 . primMK_COMB rth3 $ primMK_COMB rth4 thRp
+        return (th1, th2))
         <?> "nnfDConv: equality case"
-    | otherwise = nnfDConvBase baseconvs tm
-nnfDConv _ baseconvs tm@(Comb q@(Const "!" (TyApp f1 (TyApp f2 (ty : _) : _))) bod@( Abs x t))
-    | f1 == tyOpFun && f2 == tyOpFun =
-        (do pth <- pthNotForall
-            notTm <- serve notPTm
-            (thP, thN) <- nnfDConv True baseconvs t
-            th1 <- fromRightM $ ruleAP_TERM q =<< primABS x thP
-            p <- liftM (mkVar "P") $ mkFunTy ty tyBool
-            let rth1 = fromJust $ primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pth
-            rth3 <- fromRightM $ do rth2 <- ruleAP_TERM notTm =<< primBETA =<< mkComb bod x
-                                    primTRANS rth2 thN
-            rth4 <- ruleMK_EXISTS x rth3
-            fromRightM $ do th2 <- primTRANS rth1 rth4
-                            return (th1, th2))
-        <?> "nnfDConv: forall case"
-    | otherwise = nnfDConvBase baseconvs tm
-nnfDConv cf baseconvs tm@(Comb q@(Const "?" (TyApp f1 (TyApp f2 (ty : _) : _))) bod@( Abs x t))
-    | f1 == tyOpFun && f2 == tyOpFun =
-        (do pth <- pthNotExists
-            notTm <- serve notPTm
-            (thP, thN) <- nnfDConv cf baseconvs t
-            th1 <- fromRightM $ ruleAP_TERM q =<< primABS x thP
-            p <- liftM (mkVar "P") $ mkFunTy ty tyBool
-            let rth1 = fromJust $ primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pth
-            rth3 <- fromRightM $ do rth2 <- ruleAP_TERM notTm =<< primBETA =<< mkComb bod x
-                                    primTRANS rth2 thN
-            rth4 <- ruleMK_FORALL x rth3
-            fromRightM $ do th2 <- primTRANS rth1 rth4 
-                            return (th1, th2))
-        <?> "nnfDConv: exists case"
-    | otherwise = nnfDConvBase baseconvs tm
-nnfDConv cf baseconvs tm@( Comb ( Const "?!" ( TyApp f1 (TyApp f2 (ty : _) : _))) bod@( Abs x t))
-    | f1 == tyOpFun && f2 == tyOpFun =
-        let y = variant (x : frees t) x in
-          (do pth1 <- pthExu
-              pth2 <- pthNotExu
-              andTm <- serve andPTm
-              orTm <- serve orPTm
-              notTm <- serve notPTm
-              (thP, thN) <- nnfDConv cf baseconvs t
-              eq <- mkEq y x
-              (ethP, ethN) <- baseconvs eq
-              bth <- fromRightM $ primBETA =<< mkComb bod x
-              bth' <- runConv convBETA #<< mkComb bod y
-              let thP' = fromJust $ primINST [(x, y)] thP
-              let thN' = fromJust $ primINST [(x, y)] thN
-              p <- liftM (mkVar "P") $ mkFunTy ty tyBool
-              let lth1 = fromJust $ primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pth1
-              let rth1 = fromJust $ primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pth2
-              lth2 <- ruleMK_EXISTS x #<< primTRANS bth thP
-              lth3 <- fromRightM $ ruleAP_TERM andTm lth2
-              lth8 <- fromRightM $ do lth4 <- ruleAP_TERM notTm bth
-                                      lth5 <- ruleAP_TERM orTm =<< primTRANS lth4 thN
-                                      lth6 <- ruleAP_TERM notTm bth'
-                                      lth7 <- ruleAP_TERM orTm =<< primTRANS lth6 thN'
-                                      primMK_COMB lth5 =<< primMK_COMB lth7 ethP
-              lth9 <- ruleMK_FORALL x =<< ruleMK_FORALL y lth8
-              lth10 <- fromRightM $ primMK_COMB lth3 lth9
-              rth2 <- fromRightM $ flip primTRANS thN =<< ruleAP_TERM notTm bth
-              rth3 <- ruleMK_FORALL x rth2
-              rth4 <- fromRightM $ ruleAP_TERM orTm rth3
-              rth7 <- fromRightM $ do rth5 <- ruleAP_TERM andTm =<< primTRANS bth thP
-                                      rth6 <- ruleAP_TERM andTm =<< primTRANS bth' thP'
-                                      primMK_COMB rth5 =<< primMK_COMB rth6 ethN
-              rth8 <- ruleMK_EXISTS x =<< ruleMK_EXISTS y rth7
-              fromRightM $ do rth9 <- primMK_COMB rth4 rth8
-                              th1 <- primTRANS lth1 lth10
-                              th2 <- primTRANS rth1 rth9
-                              return (th1, th2))
-          <?> "nnfDConv: unique exists case"
-    | otherwise = nnfDConvBase baseconvs tm
-nnfDConv cf baseconvs ( Comb ( Const "~" _) t) =
-    (do pth <- pthNotNot
-        pTm <- serve pPTm
-        (th1, th2) <- nnfDConv cf baseconvs t
-        let rth1 = fromJust $ primINST [(pTm, t)] pth
-        fromRightM $ do rth2 <- primTRANS rth1 th1
-                        return (th2, rth2))
+nnfDConv _ baseconvs tm@(Comb q@(Const "!" ((ty :-> _) :-> _) bod@(Abs x t))
+    (do (thP, thN) <- nnfDConv True baseconvs t
+        th1 <- ruleAP_TERM q $ primABS x thP
+        p <- liftM (mkVar "P") $ mkFunTy ty tyBool
+        rth1 <- primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pthNotForall
+        rth2 <- ruleAP_TERM tmNot . primBETA $ mkComb bod x
+        rth3 <- primTRANS rth2 thN
+        rth4 <- ruleMK_EXISTS x rth3
+        th2 <- primTRANS rth1 rth4
+        return (th1, th2))
+    <?> "nnfDConv: forall case"
+nnfDConv cf baseconvs tm@(Comb q@(Const "?" ((ty :-> _) :-> _) bod@(Abs x t))
+    (do (thP, thN) <- nnfDConv cf baseconvs t
+        th1 <- ruleAP_TERM q $ primABS x thP
+        p <- liftM (mkVar "P") $ mkFunTy ty tyBool
+        rth1 <- primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pthNotExists
+        rth2 <- ruleAP_TERM notTm . primBETA $ mkComb bod x
+        rth3 <- primTRANS rth2 thN
+        rth4 <- ruleMK_FORALL x rth3
+        th2 <- primTRANS rth1 rth4 
+        return (th1, th2))
+    <?> "nnfDConv: exists case"
+nnfDConv cf baseconvs tm@(Comb (Const "?!" ((ty :-> _) :-> _) bod@(Abs x t))
+    (do (thP, thN) <- nnfDConv cf baseconvs t
+        let y = variant (x : frees t) x
+        eq <- mkEq y x
+        (ethP, ethN) <- baseconvs eq
+        bth <- primBETA $ mkComb bod x
+        bth' <- runConv convBETA $ mkComb bod y
+        thP' <- primINST [(x, y)] thP
+        thN' <- primINST [(x, y)] thN
+        p <- liftM (mkVar "P") $ mkFunTy ty tyBool
+        lth1 <- primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pthExu
+        rth1 <- primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pthNotExu
+        lth2 <- ruleMK_EXISTS x $ primTRANS bth thP
+        lth3 <- ruleAP_TERM tmAnd lth2
+        lth4 <- ruleAP_TERM tmNot bth
+        lth5 <- ruleAP_TERM tmOr $ primTRANS lth4 thN
+        lth6 <- ruleAP_TERM notTm bth'
+        lth7 <- ruleAP_TERM tmOr $ primTRANS lth6 thN'
+        lth8 <- primMK_COMB lth5 $ primMK_COMB lth7 ethP
+        lth9 <- ruleMK_FORALL x $ ruleMK_FORALL y lth8
+        lth10 <- primMK_COMB lth3 lth9
+        rth2 <- primTRANS (ruleAP_TERM tmNot bth) thN
+        rth3 <- ruleMK_FORALL x rth2
+        rth4 <- ruleAP_TERM tmOr rth3
+        rth5 <- ruleAP_TERM tmAnd $ primTRANS bth thP
+        rth6 <- ruleAP_TERM tmAnd $ primTRANS bth' thP'
+        rth7 <- primMK_COMB rth5 $ primMK_COMB rth6 ethN
+        rth8 <- ruleMK_EXISTS x $ ruleMK_EXISTS y rth7
+        rth9 <- primMK_COMB rth4 rth8
+        th1 <- primTRANS lth1 lth10
+        th2 <- primTRANS rth1 rth9
+        return (th1, th2))
+    <?> "nnfDConv: unique exists case"
+nnfDConv cf baseconvs (Neg t) =
+    (do (th1, th2) <- nnfDConv cf baseconvs t
+        rth1 <- primINST [(tmP, t)] pthNotNot
+        rth2 <- primTRANS rth1 th1
+        return (th2, rth2))
     <?> "nnfDConv: not case"
 nnfDConv _ baseconvs tm = nnfDConvBase baseconvs tm
 
-nnfDConvBase :: (HOLTerm -> HOL cls thry (HOLThm, HOLThm)) -> HOLTerm -> HOL cls thry (HOLThm, HOLThm)
+nnfDConvBase :: (HOLTerm -> HOL cls thry (HOLThm, HOLThm)) -> HOLTerm 
+             -> HOL cls thry (HOLThm, HOLThm)
 nnfDConvBase baseconvs tm =
-    (baseconvs tm <|> (let th1 = primREFL tm in
-                         do th2 <- liftM primREFL $ mkNeg tm
-                            return (th1, th2)))
+    (baseconvs tm <|> 
+     (do th1 <- primREFL tm
+         th2 <- primREFL $ mkNeg tm
+         return (th1, th2)))
     <?> "nnfDConv: base case"
 
 type NNFConv cls thry = 

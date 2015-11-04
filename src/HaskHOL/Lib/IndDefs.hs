@@ -41,15 +41,16 @@ stripNComb :: MonadThrow m => Int -> HOLTerm -> m (HOLTerm, [HOLTerm])
 stripNComb n tm = stripRec n tm []
     where stripRec x t acc
               | x < 1 = return (t, acc)
-              | otherwise = case t of
-                              (Comb l r) -> stripRec (x - 1) l (r:acc)
-                              _ -> fail' "stripNComb"
+              | otherwise = 
+                  case t of
+                    (Comb l r) -> stripRec (x - 1) l (r:acc)
+                    _ -> fail' "stripNComb"
 
 ruleRIGHT_BETAS :: (HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
                 => [tm] -> thm -> HOL cls thry HOLThm
-ruleRIGHT_BETAS tms pthm = 
-    do thm <- toHThm pthm
-       foldlM (\ a b -> ruleCONV (convRAND convBETA) $ ruleAP_THM a b) thm tms
+ruleRIGHT_BETAS tms = 
+    itlistM (\ a -> ruleCONV (convRAND convBETA) . 
+                    flip ruleAP_THM a) tms <=< toHThm
 
 ruleEXISTS_EQUATION :: (IndDefsCtxt thry, HOLTermRep tm cls thry, 
                         HOLThmRep thm cls thry) 
@@ -90,37 +91,37 @@ canonicalizeClause cls args = note "canonicalizeClause" $
          eth <- if isImp bimp 
                 then do atm <- foldrM (\ x y -> flip mkConj y =<< 
                                                   uncurry mkEq x) ant (yes++no)
-                        (ths, tth) <- nsplit ruleCONJ_PAIR plis $ primASSUME atm
+                        (ths, tth) <- nsplit ruleCONJ_PAIR plis =<< 
+                                        primASSUME atm
                         th0 <- ruleMP (ruleSPECL avs $ primASSUME cls) tth
                         (th6, th5') <- canon' atm th0 ths
-                        th7 <- foldrM (ruleCONJ . primREFL . snd) 
-                                 (primASSUME ant) no
+                        th7 <- itlistM (ruleCONJ . primREFL . snd) no =<< 
+                                 primASSUME ant
                         th8 <- ruleGENL avs . ruleDISCH ant $ ruleMP th6 th7
                         ruleIMP_ANTISYM th5' $ ruleDISCH_ALL th8
-                else do atm <- listMkConj $ mapM (uncurry mkEq) (yes ++ no)
+                else do atm <- listMkConj =<< mapM (uncurry mkEq) (yes ++ no)
                         ths <- ruleCONJUNCTS $ primASSUME atm
                         th0 <- ruleSPECL avs $ primASSUME cls
                         (th6, th5') <- canon' atm th0 ths
-                        th7 <- foldr1M ruleCONJ $ map (primREFL . snd) no
+                        th7 <- foldr1M ruleCONJ =<< mapM (primREFL . snd) no
                         th8 <- ruleGENL avs $ ruleMP th6 th7
                         ruleIMP_ANTISYM th5' $ ruleDISCH_ALL th8
          ftm <- funpowM (length args) (body <=< rand) =<< rand (concl eth)
-         fth' <- foldrM ruleMK_FORALL (runConv convFORALL_IMPS ftm) args
-         primTRANS eth fth'
+         fth <- itlistM ruleMK_FORALL args =<< runConv convFORALL_IMPS ftm
+         primTRANS eth fth
   where convFORALL_IMPS :: BoolCtxt thry => Conversion cls thry
         convFORALL_IMPS = Conv $ \ tm ->
             let (avs, bod) = stripForall tm in
-              do th1 <- ruleDISCH tm . ruleUNDISCH . ruleSPEC_ALL . 
+              do th1 <- ruleDISCH tm . ruleUNDISCH . ruleSPEC_ALL $ 
                           primASSUME tm
                  th2 <- foldrM ruleSIMPLE_CHOOSE th1 avs
                  let tm2 = head $ hyp th2
                  th3 <- ruleDISCH tm2 $ ruleUNDISCH th2
                  th4 <- primASSUME $ concl th3
                  ant <- lHand bod
-                 th5 <- primASSUME ant
-                 th6 <- foldrM ruleSIMPLE_EXISTS th5 avs
-                 th7 <- ruleGENL avs . ruleDISCH ant $ ruleMP th4 th6
-                 ruleIMP_ANTISYM (ruleDISCH_ALL th3) $ ruleDISCH_ALL th7
+                 th5 <- itlistM ruleSIMPLE_EXISTS avs =<< primASSUME ant
+                 th6 <- ruleGENL avs . ruleDISCH ant $ ruleMP th4 th5
+                 ruleIMP_ANTISYM (ruleDISCH_ALL th3) $ ruleDISCH_ALL th6
 
         canon :: BoolCtxt thry => HOLTerm -> HOLTermEnv -> HOLTermEnv 
               -> [HOLTerm] -> HOLTerm -> HOLThm -> [HOLThm] 
@@ -130,11 +131,11 @@ canonicalizeClause cls args = note "canonicalizeClause" $
                             case runCatch . lhs $ concl th of
                               Right res -> res == t
                               _ -> False) ths) args
-               th1 <- foldlM primMK_COMB (primREFL rel) thl
+               th1 <- revItlistM (flip primMK_COMB) thl =<< primREFL rel
                th2 <- primEQ_MP (ruleSYM th1) th0
                th3 <- primINST yes $ ruleDISCH atm th2
                tm4 <- funpowM (length yes) rand =<< lHand (concl th3)
-               th4 <- foldrM (ruleCONJ . primREFL . fst) (primASSUME tm4) yes
+               th4 <- itlistM (ruleCONJ . primREFL . fst) yes =<< primASSUME tm4
                th5 <- ruleGENL args . ruleGENL nvs . ruleDISCH tm4 $ 
                         ruleMP th3 th4
                th6 <- ruleSPECL nvs . ruleSPECL (map snd plis) $
@@ -164,11 +165,10 @@ canonicalizeClauses clauses =
        let avoids = variables closed
            flargs = mkArgs "a" avoids . map typeOf $ foldr1 (++) xargs
        zargs <- liftM (zip rels) $ shareOut xargs flargs
-       cargs <- mapM (\ (x, _) -> x `lookup` zargs) uncs
+       cargs <- mapM (\ (x, _) -> x `assoc` zargs) uncs
        cthms <- map2M canonicalizeClause clauses cargs
        pclauses <- mapM (rand . concl) cthms
-       let collectClauses :: MonadThrow m => HOLTerm -> m HOLTerm
-           collectClauses tm = 
+       let collectClauses tm = 
                mapFilter (\ (x, y) -> if x == tm then return y 
                                       else fail' "collectClauses") $  
                  zip (map fst uncs) pclauses
@@ -176,10 +176,10 @@ canonicalizeClauses clauses =
        cclausel <- mapM listMkConj clausell
        cclauses <- listMkConj cclausel
        oclauses <- listMkConj pclauses
-       eth <- ruleCONJ_ACI $ mkEq oclauses cclauses
+       eth <- ruleCONJ_ACI =<< mkEq oclauses cclauses
        cth <- foldr1M ruleMK_CONJ cthms
        pth <- primTRANS cth eth
-       th1 <- foldr1M ruleMK_CONJ $ mapM ruleAND_IMPS_CONV cclausel 
+       th1 <- foldr1M ruleMK_CONJ =<< mapM ruleAND_IMPS_CONV cclausel 
        primTRANS pth th1
   where getConcl :: HOLTerm -> HOLTerm
         getConcl tm =
@@ -190,7 +190,7 @@ canonicalizeClauses clauses =
 
         ruleCONJ_ACI :: (TheoremsCtxt thry, HOLTermRep tm cls thry) 
                      => tm -> HOL cls thry HOLThm
-        ruleCONJ_ACI tm = convAC thmCONJ_ACI
+        ruleCONJ_ACI = runConv (convAC thmCONJ_ACI)
 
         ruleAND_IMPS_CONV :: (BoolCtxt thry, HOLTermRep tm cls thry) 
                           => tm -> HOL cls thry HOLThm
@@ -205,18 +205,16 @@ canonicalizeClauses clauses =
                th3 <- ruleDISCH tm2 . ruleUNDISCH . ruleSPEC_ALL $ 
                         primASSUME tm2
                (thts, tht) <- nsplit ruleSIMPLE_DISJ_PAIR (tail ths) th3
-               let procFun :: HOLThm -> HOL cls thry HOLThm
-                   procFun thm = 
-                       let t = head $ hyp thm in
-                         ruleGENL avs . ruleDISCH t $ ruleUNDISCH thm
-               th4 <- foldrM (ruleCONJ . procFun) (procFun tht) thts
+               let procFun thm = let t = head $ hyp thm in
+                       ruleGENL avs . ruleDISCH t $ ruleUNDISCH thm
+               th4 <- itlistM (ruleCONJ . procFun) thts =<< procFun tht
                ruleIMP_ANTISYM (ruleDISCH_ALL th2) $ ruleDISCH_ALL th4
-          where ruleSIMPLE_DISJ_PAIR :: (BoolCtxt thry, HOLThmRep thm cls thry) 
-                                     => thm -> HOL cls thry (HOLThm, HOLThm)
+          where ruleSIMPLE_DISJ_PAIR :: BoolCtxt thry 
+                                     => HOLThm -> HOL cls thry (HOLThm, HOLThm)
                 ruleSIMPLE_DISJ_PAIR thm@(Thm ((l :\/ r):_) _) =
                     do th1 <- ruleDISJ1 (primASSUME l) r 
                        th2 <- ruleDISJ2 l $ primASSUME r
-                       pairMap (`rulePROVE_HYP` thm) (th1, th2)
+                       pairMapM (`rulePROVE_HYP` thm) (th1, th2)
                 ruleSIMPLE_DISJ_PAIR _ = fail $ "ruleSIMPLE_DISJ_PAIR: " ++
                     "first assumption not a disjunction."
 
@@ -234,7 +232,7 @@ deriveCanonInductiveRelations cls =
             primeFun = subst crels
         closed' <- primeFun closed
         defTms <- map2M (mkDef primeFun closed' rels') vargs concs
-        defThms <- map2M ruleHALF_BETA_EXPAND vargs $ mapM primASSUME defTms
+        defThms <- map2M ruleHALF_BETA_EXPAND vargs =<< mapM primASSUME defTms
         indThms <- map2M (mkInd rels') vargs defThms
         indThmr <- foldr1M ruleCONJ indThms
         indThm <- ruleGENL rels' $ ruleDISCH closed' indThmr
@@ -266,11 +264,13 @@ deriveCanonInductiveRelations cls =
         unThs''' <- foldr1M ruleMK_CONJ $ map (snd . snd) unThs
         fThm <- primEQ_MP unThs''' ifThm
         fThms <- ruleCONJUNCTS fThm
-        caseThm <- foldr1M ruleCONJ . map2M mkCase fThms $ ruleCONJUNCTS ruleThm
+        caseThm <- foldr1M ruleCONJ =<< map2M mkCase fThms =<< 
+                     ruleCONJUNCTS ruleThm
         ruleCONJ ruleThm =<< ruleCONJ indThm caseThm)
     <?> "deriveCanonInductiveRelations"
 
-    where mkDef :: _
+    where mkDef :: (HOLTerm -> HOL cls thry HOLTerm) -> HOLTerm -> [HOLTerm]
+                -> [HOLTerm] -> HOLTerm -> HOL cls thry HOLTerm
           mkDef f closed rels arg con = 
               do tm <- mkImp closed =<< f con
                  tm' <- listMkForall rels tm
@@ -297,7 +297,7 @@ deriveCanonInductiveRelations cls =
                    tm <- lHand bod
                    ruleGENL avs . ruleDISCH tm $ primEQ_MP th4 th3
 
-          mkUnbetas :: BoolCtxt thry => (HOLTerm -> Catch HOLTerm) 
+          mkUnbetas :: BoolCtxt thry => (HOLTerm -> HOL cls thry HOLTerm) 
                     -> HOLTerm -> HOLTerm 
                     -> HOL cls thry (HOLThm, (HOLThm, HOLThm))
           mkUnbetas f tm dtm = 
@@ -307,7 +307,8 @@ deriveCanonInductiveRelations cls =
                        let quantify th = foldrM ruleMK_FORALL th avs
                        munb <- quantify =<< ruleAP_THM (ruleAP_TERM i bth) r
                        iunb <- quantify =<< ruleAP_TERM (mkComb i =<< f l) bth
-                       junb <- quantify =<< ruleAP_TERM (mkComb i r) bth
+                       ir <- mkComb i r
+                       junb <- quantify =<< ruleAP_TERM ir bth
                        return (munb, (iunb, junb))
                 _ -> fail "mkUnbetas"
 
@@ -337,48 +338,6 @@ deriveNonschematicInductiveRelations tm =
          indThm' <- ruleCONV (convONCE_DEPTH (convREWR canonThm')) indThm
          ruleCONJ ruleThm' $ ruleCONJ indThm' caseThm
 
-tacBackChain :: BoolCtxt thry => HOLThm -> Tactic cls thry
-tacBackChain thm (Goal asl w) =
-    let matchFun = rulePART_MATCH (liftM snd . destImp) thm in
-      do th1 <- matchFun w
-         case destImp $ concl th1 of
-           Just (ant, _) -> return . GS nullMeta [Goal asl ant] $ just th1
-           _ -> fail "tacBackChain"
-    where just th i [t] = do th' <- ruleINSTANTIATE i th
-                             ruleMATCH_MP th' t
-          just _ _ _ = fail "tacBackChain: bad justification"
-
-tacMonoAbs :: IndDefsCtxt thry => Tactic cls thry
-tacMonoAbs g@(Goal _ w@(ant :==> con)) = note "tacMonoAbs" $
-    let (_, vars) = stripComb con
-        rnum = length vars - 1 in
-      do ((hd1, args1), (hd2, args2)) <- pairMapM (stripNComb rnum) (ant, con)
-         hd1th <- runConv convBETA hd1
-         th1 <- foldlM ruleAP_THM hd1th args1
-         hd2th <- runConv convBETA hd2
-         th2 <- foldlM ruleAP_THM hd2th args2
-         th3 <- ruleAP_TERM (serve [indDefs| (==>) |]) th1
-         th4 <- primMK_COMB th3 th2
-         tacCONV (convREWR th4) g
-tacMonoAbs _ = fail "tacMonoAbs: not an implication."
-
-tacApplyMono :: IndDefsCtxt thry => [(Text, Tactic cls thry)] 
-             -> Tactic cls thry
-tacApplyMono tacs g@(Goal _ w@(a :==> c))
-    | a `aConv` c = 
-        do th <- ruleSPEC a thmIMP_REFL
-           tacACCEPT th g
-    | otherwise = 
-        let cn = case runCatch $ repeatM rator c of
-                   Right (Const n _) -> n
-                   _ -> "" in
-          tryFind (\ (k, t) -> if k == cn then t g 
-                               else fail "tacApplyMono") tacs
-  where thmIMP_REFL :: IndDefsCtxt thry => HOL cls thry HOLThm
-        thmIMP_REFL = cacheProof "thmIMP_REFL" ctxtIndDefs $
-                        ruleITAUT [txt| !p . p ==> p |]
-tacApplyMono _ _ = fail "tacApplyMono: not an implication"
-
 tacMONO :: IndDefsCtxt thry => Tactic cls thry
 tacMONO g = 
     do acid <- openLocalStateHOL (MonoThms [])
@@ -387,7 +346,39 @@ tacMONO g =
        tacs <- foldrM tacFun [("", tacMonoAbs)] thms
        let tacMonoStep = _REPEAT tacGEN `_THEN` tacApplyMono tacs
        (_REPEAT tacMonoStep `_THEN` tacASM_REWRITE_NIL) g
-    where tacFun :: BoolCtxt thry => HOLThm -> [(Text, Tactic cls thry)] 
+    where tacMonoAbs :: IndDefsCtxt thry => Tactic cls thry
+          tacMonoAbs gl@(Goal _ (ant :==> con)) = note "tacMonoAbs" $
+              let (_, vars) = stripComb con
+                  rnum = length vars - 1 in
+                do ((hd1, args1), (hd2, args2)) <- pairMapM (stripNComb rnum) 
+                                                     (ant, con)
+                   th1 <- revItlistM (flip ruleAP_THM) args1 =<< 
+                            runConv convBETA hd1
+                   th2 <- revItlistM (flip ruleAP_THM) args2 =<<
+                            runConv convBETA hd2
+                   th3 <- ruleAP_TERM (serve [indDefs| (==>) |]) th1
+                   th4 <- primMK_COMB th3 th2
+                   tacCONV (convREWR th4) gl
+          tacMonoAbs _ = fail "tacMonoAbs: not an implication."
+
+          tacApplyMono :: IndDefsCtxt thry => [(Text, Tactic cls thry)] 
+                       -> Tactic cls thry
+          tacApplyMono tacs gl@(Goal _ (a :==> c))
+              | a `aConv` c = 
+                  do th <- ruleSPEC a thmIMP_REFL
+                     tacACCEPT th gl
+              | otherwise = 
+                  let cn = case runCatch $ repeatM rator c of
+                             Right (Const n _) -> n
+                             _ -> "" in
+                    tryFind (\ (k, t) -> if k == cn then t gl 
+                                         else fail "tacApplyMono") tacs
+            where thmIMP_REFL :: IndDefsCtxt thry => HOL cls thry HOLThm
+                  thmIMP_REFL = cacheProof "thmIMP_REFL" ctxtIndDefs $
+                      ruleITAUT [txt| !p . p ==> p |]
+          tacApplyMono _ _ = fail "tacApplyMono: not an implication"
+
+          tacFun :: BoolCtxt thry => HOLThm -> [(Text, Tactic cls thry)] 
                  -> HOL cls thry [(Text, Tactic cls thry)]
           tacFun th l =
               do x <- rand =<< rand (concl th)
@@ -396,6 +387,19 @@ tacMONO g =
                            Const n _ -> n
                            _ -> ""
                  return ((c, tacBackChain th `_THEN` _REPEAT tacCONJ) : l)
+            where tacBackChain :: BoolCtxt thry => HOLThm -> Tactic cls thry
+                  tacBackChain thm (Goal asl w) =
+                      let matchFun = rulePART_MATCH (liftM snd . destImp) thm in
+                        do th1 <- matchFun w
+                           case concl th1 of
+                             (ant :==> _) -> 
+                                 return . GS nullMeta [Goal asl ant] $ just th1
+                             _ -> fail "tacBackChain"
+                    where just :: BoolCtxt thry 
+                               => HOLThm -> Justification cls thry
+                          just th1 i [t] = do th' <- ruleINSTANTIATE i th1
+                                              ruleMATCH_MP th' t
+                          just _ _ _ = fail "tacBackChain: bad justification"
 
 proveMonotonicityHyps :: IndDefsCtxt thry => HOLThm -> HOL cls thry HOLThm
 proveMonotonicityHyps thm = 
@@ -404,87 +408,9 @@ proveMonotonicityHyps thm =
             _REPEAT tacGEN `_THEN`
             _DISCH_THEN (_REPEAT _CONJUNCTS_THEN tacASSUME) `_THEN`
             _REPEAT tacCONJ `_THEN` tacMONO in
-      do mths <- mapFilterM proveFun . filter (not . isEq) $ hyp thm
-         foldrM rulePROVE_HYP thm mths
+      foldrM rulePROVE_HYP thm =<< 
+        (mapFilterM proveFun . filter (not . isEq) $ hyp thm)
 
-generalizeDef :: BoolCtxt thry => [HOLTerm] -> HOLTerm -> HOLThm 
-              -> HOL cls thry HOLThm
-generalizeDef vs tm thm =
-    case destEq tm of
-      Just (l@(Var lname lty), r) -> 
-          do ty <- foldrM (mkFunTy . typeOf) lty vs
-             r' <- listMkAbs vs r
-             tm' <- mkEq (mkVar lname ty) r'
-             th0 <- ruleRIGHT_BETAS vs $ primASSUME tm'
-             l'' <- lHand $ concl th0
-             th1 <- ruleDISCH tm thm
-             ruleMP (primINST [(l'', l)] th1) th0
-      _ -> fail "generalizeDef: term not an equation"
-                    
-
-generalizeSchematicVariables :: BoolCtxt thry => Bool -> [HOLTerm] -> HOLThm 
-                             -> HOL cls thry HOLThm
-generalizeSchematicVariables gflag vs thm =
-    let (defs, others) = partition isEq $ hyp thm in
-      do th1 <- foldrM (generalizeDef vs) thm defs
-         if gflag
-            then do others' <- mapM (\ t -> 
-                                     let fvs = frees t in
-                                       do forallT <- listMkForall fvs t
-                                          ruleSPECL fvs $ primASSUME forallT
-                                    ) others
-                    ruleGENL vs $ foldrM rulePROVE_HYP th1 others'
-            else return th1
-
-deriveExistence :: IndDefsCtxt thry => HOLThm -> HOL cls thry HOLThm
-deriveExistence thm =
-    let defs = filter isEq $ hyp thm in
-      foldrM ruleEXISTS_EQUATION thm defs
-
-makeDefinitions :: BoolCtxt thry => HOLThm -> HOL Theory thry HOLThm
-makeDefinitions thm =
-    let defs = filter isEq $ hyp thm in
-      do dths <- mapM (\ x -> case x of
-                                (Var name _ := _) -> newDefinition (name, x)
-                                _ -> fail "makeDefinitions") defs
-         defs' <- mapM lhs defs
-         dths' <- mapM (lhs . concl) dths
-         let insts = zip defs' dths'
-         th <- primINST insts $ foldrM ruleDISCH thm defs
-         foldlM ruleMP th dths
-
-
-unschematizeClauses :: [HOLTerm] -> HOL cls thry ([HOLTerm], [HOLTerm])
-unschematizeClauses clauses =
-    do schem <- mapM schemFun clauses
-       let schems = setify schem
-       if isVar (head schem) 
-          then return (clauses, [])
-          else if (length . setify $ map (snd . stripComb) schems) /= 1
-               then fail $ "unschematizeClauses: " ++ 
-                           "schematic variables not used consistently"
-               else do avoids <- liftM variables $ listMkConj clauses
-                       grels <- liftM (variants avoids) $ mapM hackFun schems
-                       let crels = zip grels schems
-                       clauses' <- mapM (subst crels) clauses
-                       return (clauses', snd . stripComb $ head schems)
-    where schemFun :: (MonadCatch m, MonadThrow m) => HOLTerm -> m HOLTerm
-          schemFun cls = 
-              let (avs, bod) = stripForall cls in
-                do bod' <- liftM snd (destImp bod) <|> return bod
-                   pareComb avs bod'
-
-          pareComb :: MonadThrow m => [HOLTerm] -> HOLTerm -> m HOLTerm
-          pareComb qvs tm =
-              if null (frees tm `intersect` qvs) &&
-                 all isVar (snd $ stripComb tm)
-              then return tm
-              else pareComb qvs =<< rator tm
-
-          hackFun :: (MonadCatch m, MonadThrow m) => HOLTerm -> m HOLTerm
-          hackFun tm = 
-              do (s, _) <- destVar =<< repeatM rator tm
-                 return . mkVar s $! typeOf tm
 
 proveInductiveProperties :: (IndDefsCtxt thry, 
                              HOLTermRep tm cls thry) 
@@ -495,14 +421,77 @@ proveInductiveProperties ptm =
        th <- deriveNonschematicInductiveRelations =<< listMkConj clauses'
        mth <- proveMonotonicityHyps th
        return (fvs, mth)
+  where unschematizeClauses :: [HOLTerm] -> HOL cls thry ([HOLTerm], [HOLTerm])
+        unschematizeClauses clauses =
+            do schem <- mapM schemFun clauses
+               let schems = setify schem
+               if isVar (head schem) 
+                  then return (clauses, [])
+                  else if (length . setify $ map (snd . stripComb) schems) /= 1
+                       then fail $ "unschematizeClauses: " ++ 
+                                   "schematic variables not used consistently"
+                       else do avoids <- liftM variables $ listMkConj clauses
+                               grels <- liftM (variants avoids) $ 
+                                          mapM hackFun schems
+                               let crels = zip grels schems
+                               clauses' <- mapM (subst crels) clauses
+                               return (clauses', snd . stripComb $ head schems)
 
-proveInductiveRelationsExist :: (IndDefsCtxt thry, 
-                                 HOLTermRep tm cls thry) 
+        schemFun :: (MonadCatch m, MonadThrow m) => HOLTerm -> m HOLTerm
+        schemFun cls = 
+            let (avs, bod) = stripForall cls in
+              do bod' <- liftM snd (destImp bod) <|> return bod
+                 pareComb avs bod'
+
+        pareComb :: MonadThrow m => [HOLTerm] -> HOLTerm -> m HOLTerm
+        pareComb qvs tm =
+            if null (frees tm `intersect` qvs) &&
+               all isVar (snd $ stripComb tm)
+            then return tm
+            else pareComb qvs =<< rator tm
+
+        hackFun :: (MonadCatch m, MonadThrow m) => HOLTerm -> m HOLTerm
+        hackFun tm = 
+            do (s, _) <- destVar =<< repeatM rator tm
+               return . mkVar s $! typeOf tm
+
+generalizeSchematicVariables :: BoolCtxt thry => Bool -> [HOLTerm] 
+                                     -> HOLThm -> HOL cls thry HOLThm
+generalizeSchematicVariables gflag vs thm =
+    let (defs, others) = partition isEq $ hyp thm in
+      do th1 <- foldrM (generalizeDef vs) thm defs
+         if gflag
+         then do others' <- mapM (\ t -> 
+                                  let fvs = frees t in
+                                    do forallT <- listMkForall fvs t
+                                       ruleSPECL fvs $ primASSUME forallT
+                                 ) others
+                 ruleGENL vs $ foldrM rulePROVE_HYP th1 others'
+         else return th1
+
+  where generalizeDef :: BoolCtxt thry => [HOLTerm] -> HOLTerm -> HOLThm 
+                      -> HOL cls thry HOLThm
+        generalizeDef xs tm@(l@(Var lname lty) := r) th =
+            do ty <- foldrM (mkFunTy . typeOf) lty xs
+               r' <- listMkAbs xs r
+               tm' <- mkEq (mkVar lname ty) r'
+               th0 <- ruleRIGHT_BETAS xs $ primASSUME tm'
+               l'' <- lHand $ concl th0
+               th1 <- ruleDISCH tm th
+               ruleMP (primINST [(l'', l)] th1) th0
+        generalizeDef _ _ _ = fail "generalizeDef: term not an equation."
+
+proveInductiveRelationsExist :: (IndDefsCtxt thry, HOLTermRep tm cls thry) 
                              => tm -> HOL cls thry HOLThm
 proveInductiveRelationsExist tm =
     do (fvs, th1) <- proveInductiveProperties tm
        th2 <- generalizeSchematicVariables True fvs th1
        deriveExistence th2
+  where deriveExistence :: IndDefsCtxt thry => HOLThm -> HOL cls thry HOLThm
+        deriveExistence thm =
+            let defs = filter isEq $ hyp thm in
+              foldrM ruleEXISTS_EQUATION thm defs
+
 
 -- Inductive Definitions
 data IndDefs = IndDefs !(Map Text (HOLThm, HOLThm, HOLThm)) deriving Typeable
@@ -561,6 +550,18 @@ newInductiveDefinition lbl ptm =
               updateHOL acid' (AddInductiveDef lbl trip)
               createCheckpointAndCloseHOL acid'
               return trip
+  where makeDefinitions :: BoolCtxt thry => HOLThm -> HOL Theory thry HOLThm
+        makeDefinitions thm =
+            let defs = filter isEq $ hyp thm in
+              do dths <- mapM (\ x -> case x of
+                                        (Var name _ := _) -> 
+                                            newDefinition (name, x)
+                                        _ -> fail "makeDefinitions") defs
+                 defs' <- mapM lhs defs
+                 dths' <- mapM (lhs . concl) dths
+                 let insts = zip defs' dths'
+                 th <- primINST insts $ foldrM ruleDISCH thm defs
+                 foldlM ruleMP th dths
 
 getInductiveDefinition :: Text -> HOL cls thry (HOLThm, HOLThm, HOLThm)
 getInductiveDefinition lbl =

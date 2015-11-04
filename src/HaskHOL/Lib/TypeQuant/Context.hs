@@ -35,5 +35,5 @@ ctxtTypeQuant :: TheoryPath TypeQuantType
 ctxtTypeQuant = extendTheory ctxtTrivia $(thisModule') $ 
     extendBasicConvs 
       [("convTYBETA", 
-        ([str| ((\\ 'B. t):(% 'B. C)) [: 'A] |], "HaskHOL.Lib.TypeQuant"))]
+        ([txt| ((\\ 'B. t):(% 'B. C)) [: 'A] |], "HaskHOL.Lib.TypeQuant"))]
 

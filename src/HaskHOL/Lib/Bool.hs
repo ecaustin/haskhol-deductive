@@ -81,8 +81,6 @@ module HaskHOL.Lib.Bool
       -- * Additional Definitions for Type Quantification
     , defTY_FORALL
     , defTY_EXISTS
-      -- * Misc terms
-    , tmPred
     ) where
 
 import HaskHOL.Core
@@ -93,9 +91,7 @@ import HaskHOL.Lib.Bool.Context
 import HaskHOL.Lib.Bool.PQ
 
 pattern T <- Const "T" _
-
 pattern F <- Const "F" _
-
 
 tmP, tmQ, tmR, tmT, tmX, tmPred :: BoolCtxt thry => HOL cls thry HOLTerm
 tmP = serve [bool| p:bool |]
@@ -217,8 +213,7 @@ ruleCONJ pthm1 pthm2 =
                th0 <- ruleAP_TERM [txt| f:bool->bool->bool |] eqpthm
                th1 <- primABS [txt| f:bool->bool->bool |] $ 
                         primMK_COMB th0 eqqthm
-               th1_5 <- ruleAP_THM defAND tmP
-               th2 <- ruleBETA $ ruleAP_THM th1_5 tmQ
+               th2 <- ruleBETA $ ruleAP_THM (ruleAP_THM defAND tmP) tmQ
                primEQ_MP (ruleSYM th2) th1
 
 {-|@
@@ -545,8 +540,8 @@ ruleSPEC ptm pthm = note "ruleSPEC" $
   where ruleSPEC_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleSPEC_pth = cacheProof "ruleSPEC_pth" ctxtBool $
             do th1 <- ruleAP_THM defFORALL tmPred
-               th1_5 <- primEQ_MP th1 $ primASSUME [txt| (!)(P:A->bool) |]
-               th2 <- ruleCONV convBETA th1_5
+               th2 <- ruleCONV convBETA . primEQ_MP th1 $ 
+                        primASSUME [txt| (!)(P:A->bool) |]
                th3 <- ruleCONV (convRAND convBETA) $ ruleAP_THM th2 tmX
                ruleDISCH_ALL $ ruleEQT_ELIM th3
 
@@ -563,8 +558,7 @@ ruleSPEC ptm pthm = note "ruleSPEC" $
 ruleSPECL :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
           => [tm] -> thm -> HOL cls thry HOLThm
 ruleSPECL ptms pthm = 
-    (do thm <- toHThm pthm
-        foldlM (flip ruleSPEC) thm ptms) <?> "ruleSPECL"
+    (revItlistM ruleSPEC ptms =<< toHThm pthm) <?> "ruleSPECL"
                                  
 {-|@
      A |- !x. t       
@@ -704,8 +698,7 @@ ruleGEN px pthm = note "ruleGEN" $
 ruleGENL :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
          => [tm] -> thm -> HOL cls thry HOLThm
 ruleGENL ptms pthm = 
-    (do thm <- toHThm pthm
-        foldrM ruleGEN thm ptms) <?> "ruleGENL"
+    (itlistM ruleGEN ptms =<< toHThm pthm) <?> "ruleGENL"
 
 {-|@
        A |- t

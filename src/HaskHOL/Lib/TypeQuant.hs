@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternSynonyms #-}
 {-|
   Module:    HaskHOL.Lib.TypeQuant
   Copyright: (c) The University of Kansas 2013
@@ -40,7 +39,7 @@ import HaskHOL.Lib.TypeQuant.PQ
 -- Equality Rules
 convALPHA_TY :: HOLType -> Conversion cls thry
 convALPHA_TY v@(TyVar True _) = Conv $ \ tm ->
-    fromRightM (ruleALPHA tm =<< alphaTyabs v tm) <?> "convALPHA_TY"
+    (ruleALPHA tm =<< alphaTyabs v tm) <?> "convALPHA_TY"
 convALPHA_TY _ = 
     _FAIL "convALPHA_TY: provided type is not a small type variable."
 
@@ -50,7 +49,7 @@ convGEN_ALPHA_TY v@(TyVar True _) = Conv $ \ tm ->
       TyAbs{} -> runConv (convALPHA_TY v) tm
       (Comb b ab@TyAbs{}) ->
           do abth <- runConv (convALPHA_TY v) ab
-             fromRightM $ ruleAP_TERM b abth
+             ruleAP_TERM b abth
       _ -> fail "convGEN_ALPHA_TY"
 convGEN_ALPHA_TY _ =
     _FAIL "convGEN_ALPHA_TY: provided type not a small type variable."
@@ -65,104 +64,104 @@ ruleGEN_TY :: TypeQuantCtxt thry => HOLType -> HOLThm -> HOL cls thry HOLThm
 ruleGEN_TY ty@(TyVar True _) th =
     do pth <- ruleGEN_TY_pth
        th1 <- ruleEQT_INTRO th
-       liftO $ do th2 <- primTYABS ty th1
-                  phi <- note "" . lHand $ concl th2
-                  ptm <- note "" $ rand =<< rand (concl pth)
-                  pth' <- note "" $ primINST [(ptm, phi)] pth
-                  primEQ_MP pth' th2
+       th2 <- primTYABS ty th1
+       phi <- lHand $ concl th2
+       ptm <- rand =<< rand (concl pth)
+       pth' <- primINST [(ptm, phi)] pth
+       primEQ_MP pth' th2
   where -- proves |- P = (\\ 'x . T) <=> (!!) P
         ruleGEN_TY_pth :: TypeQuantCtxt thry => HOL cls thry HOLThm
         ruleGEN_TY_pth = cacheProof "ruleGEN_TY_pth" ctxtTypeQuant $
-            do p <- toHTm "P: %'X . bool"
-               dTyForall <- defTY_FORALL
-               thm <- ruleCONV (convRAND convBETA) #<< ruleAP_THM dTyForall p
-               liftO $ ruleSYM thm
+            do thm <- ruleCONV (convRAND convBETA) $ 
+                        ruleAP_THM defTY_FORALL [txt| P: %'X . bool |]
+               ruleSYM thm
 ruleGEN_TY _ _ = fail "ruleGEN_TY: not a small, type variable"
 
 
 -- !! 'x. t ----> t [u/'x]
-ruleSPEC_TY :: TypeQuantCtxt thry => HOLType -> HOLThm 
-            -> HOL cls thry HOLThm
-ruleSPEC_TY ty thm =
-    do p <- serve [bool| P: % 'A. bool |]
-       x <- serve [bool| :'X |]
-       pth <- ruleSPEC_TY_pth
-       case rand $ concl thm of
-         Just ab@TyAbs{} ->
-             (ruleCONV convTYBETA =<< 
-                ruleMP (fromJust $ rulePINST [(x, ty)] [(p, ab)] pth) thm) <?> "ruleSPEC_TY"
+ruleSPEC_TY :: (TypeQuantCtxt thry, HOLTypeRep ty cls thry, 
+                HOLThmRep thm cls thry) 
+            => ty -> thm -> HOL cls thry HOLThm
+ruleSPEC_TY pty pthm =
+    do thm <- toHThm pthm
+       case concl thm of
+         (Comb _ ab@TyAbs{}) ->
+             do ty <- toHTy pty
+                x <- mkSmall $ mkVarType "X"
+                pth <- rulePINST [(x, ty)] 
+                                 [(serve [typeQuant| P: % 'A. bool |], ab)] 
+                                 ruleSPEC_TY_pth
+                (ruleCONV convTYBETA $ ruleMP pth thm) <?> "ruleSPEC_TY"
          _ -> fail "ruleSPEC_TY: not a type abstraction"
   where -- proves |- (!!) P ==> P [: 'X]
         ruleSPEC_TY_pth :: TypeQuantCtxt thry
                         => HOL cls thry HOLThm
         ruleSPEC_TY_pth = cacheProof "ruleSPEC_TY_pth" ctxtTypeQuant $
-            do p <- toHTm "P: % 'A. bool"
-               x <- toHTy "'X"
-               tyForallP <- toHTm "(!!)(P: % 'A. bool)"
-               dTyForall <- defTY_FORALL
-               let th1 = fromRight $ ruleAP_THM dTyForall p
-               th2 <- ruleCONV convBETA #<< 
-                        primEQ_MP th1 =<< primASSUME tyForallP
-               th3 <- ruleCONV (convRAND convTYBETA) #<< primTYAPP x th2
-               ruleDISCH_ALL =<< ruleEQT_ELIM th3
+            do th1 <- ruleAP_THM defTY_FORALL [txt| P: % 'A. bool |]
+               th2 <- ruleCONV convBETA . primEQ_MP th1 $
+                        primASSUME [txt| (!!)(P: % 'A. bool) |]
+               th3 <- ruleCONV (convRAND convTYBETA) $ 
+                        primTYAPP [txt| :'X |] th2
+               ruleDISCH_ALL $ ruleEQT_ELIM th3
 
 -- Basic boolean tactics
 tacX_GEN_TY :: TypeQuantCtxt thry => HOLType -> Tactic cls thry
-tacX_GEN_TY x'@(TyVar True _) (Goal asl w) =
-    do (x, bod) <- liftMaybe "tacX_GEN_TY: not a tyforall" $ destTyAll w
-       let avoids = foldr (union . typeVarsInThm . snd) (typeVarsInTerm w) asl
-       if x' `elem` avoids 
-          then fail "tacX_GEN_TY: provided type is free in goal"
-          else (let afn = ruleCONV (convGEN_ALPHA_TY x)
-                    bod' = inst [(x, x')] bod in
-                  return . GS nullMeta [Goal asl bod'] $ justification afn)
-               <?> "tacX_GEN_TY"
-  where justification afn _ [th] = afn =<< ruleGEN_TY x' th
+tacX_GEN_TY x'@(TyVar True _) (Goal asl w@(TyAll x bod))
+    | x `elem` avoids = fail "tacX_GEN_TY: provided type is free in goal"
+    | otherwise =
+        (let afn = ruleCONV (convGEN_ALPHA_TY x)
+             bod' = inst [(x, x')] bod in
+           return . GS nullMeta [Goal asl bod'] $ justification afn)
+        <?> "tacX_GEN_TY"
+  where avoids :: [HOLType]
+        avoids = foldr (union . typeVarsInThm . snd) (typeVarsInTerm w) asl
+
+        justification :: TypeQuantCtxt thry => (HOLThm -> HOL cls thry HOLThm) 
+                      -> Justification cls thry
+        justification afn _ [th] = afn =<< ruleGEN_TY x' th
         justification _ _ _ = fail "tacX_GEN_TY: improper justification"
 tacX_GEN_TY _ _ = 
-    fail "tacX_GEN_TY: provided type is not a small type variable."
+    fail "tacX_GEN_TY: goal not universally quantified over a type."
 
 tacGEN_TY :: TypeQuantCtxt thry => Tactic cls thry
-tacGEN_TY g@(Goal asl w) =
-    do (x, _) <- liftMaybe "tacGEN_TY: not a tyforall" $ destTyAll w
-       let avoids = foldr (union . typeVarsInThm . snd) (typeVarsInTerm w) asl
-           x' = variantTyVar avoids x
-       tacX_GEN_TY x' g
+tacGEN_TY g@(Goal asl w@(TyAll x _)) =
+    let avoids = foldr (union . typeVarsInThm . snd) (typeVarsInTerm w) asl
+        x' = variantTyVar avoids x in
+      tacX_GEN_TY x' g
+tacGEN_TY _ =
+    fail "tacGEN_TY: goal not universally quantified over a type."
 
 -- More advanced elimination tactics
 
 tacUTYPE_E :: BoolCtxt thry => HOLType -> Tactic cls thry
-tacUTYPE_E ty = tacASSUM_REWRITE (ruleTYBETA <#< primTYAPP ty)
+tacUTYPE_E ty = tacASSUM_REWRITE (ruleTYBETA . primTYAPP ty)
 
 tacTYABS_E :: BoolCtxt thry => Tactic cls thry
 tacTYABS_E = tacASSUM_REWRITE $ \ thm -> 
-    do tv <- liftMaybe ("tacTYABS_E: assumption not an equation of " ++ 
-                        "universal type") $ do (l, _) <- destEq $ concl thm
-                                               (tv, _) <- destUType $ typeOf l
-                                               return tv
-       ruleTYBETA #<< primTYAPP tv thm
+    do (l, _) <- destEq $ concl thm
+       (tv, _) <- destUType $ typeOf l
+       ruleTYBETA $ primTYAPP tv thm
 
-tacTYALL_ELIM :: TypeQuantCtxt thry => HOLType 
-              -> Tactic cls thry
+tacTYALL_ELIM :: TypeQuantCtxt thry => HOLType -> Tactic cls thry
 tacTYALL_ELIM ty = tacASSUM_REWRITE (ruleSPEC_TY ty)
 
 tacTYALL_E :: TypeQuantCtxt thry => Tactic cls thry
 tacTYALL_E = tacASSUM_REWRITE $ \ thm -> 
-    do tv <- liftMaybe ("tacTYALL_E: assumption does not have a universally " ++
-                        "quantified type") . liftM fst . destTyAll $ concl thm
+    do tv <- liftM fst . destTyAll $ concl thm
        ruleSPEC_TY tv thm
 
 tacTYABS :: Tactic cls thry
 tacTYABS (Goal asl w@(TyAbs ltv lb := TyAbs rtv rb)) =
-    let lb' = inst [(ltv, tv)] lb
+    let avoids = foldr (union . typeVarsInThm . snd) (typeVarsInTerm w) asl
+        tv = variantTyVar avoids ltv
+        lb' = inst [(ltv, tv)] lb
         rb' = inst [(rtv, tv)] rb in
       do w' <- mkEq lb' rb'
-         return $! GS nullMeta [Goal asl w'] justification
-  where avoids = foldr (union . typeVarsInThm . snd) (typeVarsInTerm w) asl
-        tv = variantTyVar avoids ltv
-        justification i [thm] =liftO $ 
+         return . GS nullMeta [Goal asl w'] $ justification tv
+  where justification :: HOLType -> Justification cls thry
+        justification tv i [thm] =
             do ath <- primTYABS tv thm
                bth <- ruleALPHA (concl ath) (instantiate i w)
                primEQ_MP bth ath
-        justification _ _ = fail "tacTYABS: bad justification."
+        justification _ _ _ = fail "tacTYABS: bad justification."
 tacTYABS _ = fail "tacTYABS: not an equation of type abstractions."

@@ -708,8 +708,7 @@ tacMATCH_MP pth (Goal asl w) =
         th1 <- ruleSPECL avs $ primASSUME tm
         th2 <- ruleUNDISCH th1
         let evs = filter (\ v -> varFreeIn v ant && not (varFreeIn v con)) avs
-        th2_5 <- ruleDISCH tm th2
-        th3 <- foldrM ruleSIMPLE_CHOOSE th2_5 evs
+        th3 <- itlistM ruleSIMPLE_CHOOSE evs =<< ruleDISCH tm th2
         tm3 <- tryHead $ hyp th3
         th4 <- ruleDISCH tm . ruleGEN_ALL . ruleDISCH tm3 $ ruleUNDISCH th3
         sth <- ruleMP th4 th
