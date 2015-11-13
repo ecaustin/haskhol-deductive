@@ -41,7 +41,7 @@ addLiftedFunction lbl ths =
 getLiftedFunction' :: Text -> Query LiftedFunctions (Maybe (HOLThm, HOLThm))
 getLiftedFunction' name =
     do (LiftedFunctions m) <- ask
-       return $! mapLookup name m
+       return $! mapAssoc name m
 
 makeAcidic ''LiftedFunctions ['addLiftedFunction, 'getLiftedFunction']
 
