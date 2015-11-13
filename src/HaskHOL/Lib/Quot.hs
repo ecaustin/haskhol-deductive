@@ -58,7 +58,7 @@ addQuotientType lbl ths =
 getQuotientType' :: Text -> Query QuotientTypes (Maybe (HOLThm, HOLThm))
 getQuotientType' name =
     do (QuotientTypes m) <- ask
-       return $! mapLookup name m
+       return $! mapAssoc name m
 
 makeAcidic ''QuotientTypes ['addQuotientType, 'getQuotientType']
 
@@ -72,22 +72,21 @@ defineQuotientType tyname absname repname tm =
        case qth of
          Just th -> 
              return th
-         Nothing -> noteHOL "defineQuotientType" $
+         Nothing -> note "defineQuotientType" $
              do eqv <- toHTm tm
                 case typeOf eqv of
                   (TyApp _ (ty:_)) ->
                       do pty <- mkFunTy ty tyBool
                          let s = mkVar "s" pty
                              x = mkVar "x" ty
-                         eqvx <- fromRightM $ mkComb eqv x
+                         eqvx <- mkComb eqv x
                          exx <- mkExists x =<< mkEq s eqvx
-                         predtm <- fromRightM $ mkAbs s exx
-                         th0 <- runConv convBETA =<< 
-                                  fromRightM (mkComb predtm eqvx)
-                         rtm <- fromJustM . rand $ concl th0
+                         predtm <- mkAbs s exx
+                         th0 <- runConv convBETA =<< mkComb predtm eqvx
+                         rtm <- rand $ concl th0
                          th1 <- ruleEXISTS rtm x $ primREFL eqvx
-                         th2 <- fromRightM $ ruleSYM th0
-                         th3 <- fromRightM $ primEQ_MP th2 th1
+                         th2 <- ruleSYM th0
+                         th3 <- primEQ_MP th2 th1
                          (absth, repth) <- newBasicTypeDefinition tyname 
                                              absname repname th3
                          th4 <- ruleCONV (convLAND convBETA) repth
@@ -102,11 +101,13 @@ getQuotientType name =
     do acid <- openLocalStateHOL (QuotientTypes mapEmpty)
        qth <- queryHOL acid (GetQuotientType' name)
        closeAcidStateHOL acid
-       liftMaybe "getQuotientType: type not found." qth
+       case qth of
+         Nothing -> fail "getQuotientType: type not found."
+         Just res -> return res
 
 thmSELECT_LEMMA :: TriviaCtxt thry => HOL cls thry HOLThm
 thmSELECT_LEMMA = cacheProof "thmSELECT_LEMMA" ctxtTrivia $
-    prove [str| !x:A. (@y. x = y) = x |] $
+    prove [txt| !x:A. (@y. x = y) = x |] $
       tacGEN `_THEN`
       tacGEN_REWRITE (convLAND . convBINDER) [thmEQ_SYM_EQ] `_THEN`
       tacMATCH_ACCEPT thmSELECT_REFL
@@ -122,7 +123,7 @@ liftFunction ptybij2 prefl_th ptrans_th fname pwth =
        case qth of
          Just th -> 
              return th
-         Nothing -> noteHOL "liftFunction" $
+         Nothing -> note "liftFunction" $
            do tybij2 <- toHThm ptybij2
               refl_th <- toHThm prefl_th
               trans_th <- toHThm ptrans_th
@@ -133,73 +134,75 @@ liftFunction ptybij2 prefl_th ptrans_th fname pwth =
                   case destEq tybr of
                     Just (Comb dest mrt@(Comb mk _), rtm) ->
                        let ety = typeOf mrt in
-                         do wtm <- fromJustM . repeatM 
+                         do wtm <- repeatM 
                                      (liftM snd . destForall) $ concl wth
                             let wfvs = frees wtm
                                 (hyps, con) = case destImp wtm of
                                                 Just (l, r) -> (conjuncts l, r)
                                                 Nothing -> ([], wtm)
                                 (eqs, rels) = partition isEq hyps
-                            rvs <- fromJustM $ mapM lHand rels
-                            qvs <- fromJustM $ mapM lHand eqs
+                            rvs <- mapM lHand rels
+                            qvs <- mapM lHand eqs
                             rvs' <- mapM (\ tm -> case tm of
                                                     (Var v _ ) -> 
                                                       return $! mkVar v ety
                                                     _ -> fail "") rvs
                             let evs = variants wfvs rvs'
-                            mems <- fromRightM $ map2M (\ rv ev -> flip mkComb rv =<< mkComb dest ev) rvs evs
-                            (lcon, rcon) <- fromJustM $ destComb con
+                            mems <- map2M (\ rv ev -> flip mkComb rv =<< mkComb dest ev) rvs evs
+                            (lcon, rcon) <- destComb con
                             let uvar = mkVar "u" $ typeOf rcon
                                 u = variant (evs ++ wfvs) uvar
-                            ucon <- fromRightM $ mkComb lcon u
+                            ucon <- mkComb lcon u
                             dbod <- listMkConj (ucon:mems)
                             detm <- listMkExists rvs dbod
-                            datm <- fromRightM $ mkAbs u detm
+                            datm <- mkAbs u detm
                             def <- if isEq con then listMkIComb "@" [datm]
-                                   else fromRightM $ mkComb mk datm
-                            newargs <- fromJustM $ mapM (\ e -> liftM fst (destEq e) 
+                                   else mkComb mk datm
+                            newargs <- mapM (\ e -> liftM fst (destEq e) 
                                                          <|> (do le <- lHand e
-                                                                 lookup le $ zip rvs evs)) hyps
-                            rdef <- fromRightM $ listMkAbs newargs def
+                                                                 assoc le $ zip rvs evs)) hyps
+                            rdef <- listMkAbs newargs def
                             let ldef = mkVar fname $ typeOf rdef
                             edef <- mkEq ldef rdef
                             dth <- newDefinition (fname, edef)
                             eth <- foldlM (\ th v -> ruleCONV (convRAND convBETA) =<<
-                                                  fromRightM (ruleAP_THM th v)) dth newargs
-                            targs <- fromRightM $ mapM (mkComb mk <=< mkComb eqv) rvs
-                            dme_th <- let th = fromJust $ primINST [(rtm, eqvx)] tybij2 in
-                                      do thTm <- fromJustM . lHand $ concl th
-                                         th2 <- ruleEXISTS thTm xtm $ primREFL eqvx
-                                         fromRightM $ primEQ_MP th th2
-                            let ith = fromJust $ primINST (zip evs targs) eth
-                                rvs_ths = map (\ v -> fromJust $ primINST [(xtm, v)] dme_th) rvs
+                                                  (ruleAP_THM th v)) dth newargs
+                            targs <- mapM (mkComb mk <=< mkComb eqv) rvs
+                            th <- primINST [(rtm, eqvx)] tybij2
+                            thTm <- lHand $ concl th
+                            th2 <- ruleEXISTS thTm xtm $ primREFL eqvx
+                            dme_th <- primEQ_MP th th2
+                            ith <- primINST (zip evs targs) eth
+                            rvs_ths <- mapM (\ v -> primINST [(xtm, v)] dme_th) rvs
                             jth <- ruleSUBS rvs_ths ith
-                            (apop, uxtm) <- fromJustM $ destComb =<< rand (concl jth)
-                            extm <- fromJustM $ body uxtm
+                            (apop, uxtm) <- destComb =<< rand (concl jth)
+                            extm <- body uxtm
                             let (evs', bod) = stripExists extm
-                            th1 <- fromRightM $ primASSUME bod
+                            th1 <- primASSUME bod
                             th2 <- if null evs' then return th1
                                    else do (th2a, th2b) <- ruleCONJ_PAIR th1
                                            as <- ruleCONJUNCTS th2b
-                                           let bs = map primREFL qvs
-                                               ethlist = as ++ bs
-                                           ethlist' <- fromJustM $ mapM (\ v -> find (\ th -> lHand v == lHand (concl th)) ethlist) hyps 
+                                           bs <- mapM primREFL qvs
+                                           let ethlist = as ++ bs
+                                           ethlist' <- mapM (\ v -> findM (\ th -> do v' <- lHand v
+                                                                                      c <- lHand $ concl th
+                                                                                      return $! v' == c) ethlist) hyps 
                                            th2c <- foldr1M ruleCONJ ethlist'
                                            th2d <- ruleMATCH_MP wth th2c
-                                           th2e <- fromRightM (primTRANS th2d th2a) 
+                                           th2e <- (primTRANS th2d th2a) 
                                                    <|> (ruleMATCH_MP trans_th =<< 
                                                      ruleCONJ th2d th2a)
                                            foldrM ruleSIMPLE_CHOOSE th2e evs'
-                            th3 <- fromRightM . primASSUME $ concl th2
+                            th3 <- primASSUME $ concl th2
                             ths <- mapM (`ruleSPEC` refl_th) rvs
                             th4 <- foldr1M ruleCONJ (th3:ths)
-                            th5 <- fromRightM $ primASSUME bod
+                            th5 <- primASSUME bod
                             th6 <- foldrM ruleSIMPLE_EXISTS th5 evs'
                             th7 <- ruleDISCH_ALL th6
                             th8 <- ruleMATCH_MP th7 th4
                             th9 <- ruleDISCH_ALL th2
                             th10 <- ruleIMP_ANTISYM th9 =<< ruleDISCH_ALL th8
-                            th11 <- fromRightM $ primTRANS jth =<< ruleAP_TERM apop =<< primABS u th10
+                            th11 <- primTRANS jth =<< ruleAP_TERM apop =<< primABS u th10
                             let fconv = if isEq con then Conv $ \ tm -> thmSELECT_LEMMA >>= \ th -> runConv (convREWR th) tm
                                         else convRAND convETA
                             th12 <- ruleCONV (convRAND fconv) th11
@@ -216,7 +219,9 @@ getLiftedFunction name =
     do acid <- openLocalStateHOL (LiftedFunctions mapEmpty)
        qth <- queryHOL acid (GetLiftedFunction' name)
        closeAcidStateHOL acid
-       liftMaybe "getLiftedFunction: type not found." qth
+       case qth of
+         Nothing -> fail "getLiftedFunction: type not found."
+         Just res -> return res
 
 
 liftTheorem :: (TriviaCtxt thry, HOLThmRep thm1 cls thry, 
@@ -235,7 +240,7 @@ liftTheorem ptybij prefl_th psym_th ptrans_th ptrths pthm =
        ruleREWRITE (ith:trths) pthm
   where liftTheorem_pth :: TriviaCtxt thry => HOL cls thry HOLThm
         liftTheorem_pth = cacheProof "liftTheorem_pth" ctxtTrivia $
-            prove [str| (!x:Repty. R x x) /\
+            prove [txt| (!x:Repty. R x x) /\
                         (!x y. R x y <=> R y x) /\
                         (!x y z. R x y /\ R y z ==> R x z) /\
                         (!a. mk(dest a) = a) /\
@@ -245,13 +250,13 @@ liftTheorem ptybij prefl_th psym_th ptrans_th ptrths pthm =
                               (!P. (?x. P(mk(R x))) <=> (?x. P x)) /\
                               (!x:Absty. mk(R((@)(dest x))) = x) |] $
               tacSTRIP `_THEN`
-              _SUBGOAL_THEN [str| !x y. (mk((R:Repty->Repty->bool) x):Absty = 
+              _SUBGOAL_THEN [txt| !x y. (mk((R:Repty->Repty->bool) x):Absty = 
                                            mk(R y)) <=> (R x = R y) |]
               tacASSUME `_THENL`
               [ tacASM_MESON_NIL
               , _ALL
               ] `_THEN`
-              tacMATCH_MP (ruleTAUT [str| (a /\ b /\ c) /\ (b ==> a ==> d) ==> 
+              tacMATCH_MP (ruleTAUT [txt| (a /\ b /\ c) /\ (b ==> a ==> d) ==> 
                                            a /\ b /\ c /\ d |]) `_THEN`
               tacCONJ `_THENL`
               [ tacASM_REWRITE_NIL `_THEN` tacREWRITE [thmFUN_EQ] `_THEN` 
@@ -260,8 +265,8 @@ liftTheorem ptybij prefl_th psym_th ptrans_th ptrths pthm =
               ] `_THEN`
               _REPEAT (_DISCH_THEN 
                        (\ th g -> tacREWRITE [ruleGSYM th] g)) `_THEN`
-              tacX_GEN "x:Repty" `_THEN`
-              _SUBGOAL_THEN "dest(mk((R:Repty->Repty->bool) x):Absty) = R x"
+              tacX_GEN [txt| x:Repty |] `_THEN`
+              _SUBGOAL_THEN [txt| dest(mk((R:Repty->Repty->bool) x):Absty) = R x|]
               tacSUBST1 `_THENL`
               [ tacASM_MESON_NIL
               , _ALL
