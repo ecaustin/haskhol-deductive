@@ -1,10 +1,10 @@
 {-# LANGUAGE FlexibleContexts, PatternSynonyms #-}
 {-|
   Module:    HaskHOL.Lib.Quot
-  Copyright: (c) The University of Kansas 2013
+  Copyright: (c) Evan Austin 2015
   LICENSE:   BSD3
 
-  Maintainer:  ecaustin@ittc.ku.edu
+  Maintainer:  e.c.austin@gmail.com
   Stability:   unstable
   Portability: unknown
 -}
@@ -92,7 +92,7 @@ defineQuotientType tyname absname repname tm =
                          th4 <- ruleCONV (convLAND convBETA) repth
                          acid' <- openLocalStateHOL (QuotientTypes mapEmpty)
                          updateHOL acid' (AddQuotientType tyname (absth, th4))
-                         createCheckpointAndCloseHOL acid'
+                         closeAcidStateHOL acid'
                          return (absth, th4)
                   _ -> fail "provided term has bad type"
 
@@ -170,8 +170,8 @@ liftFunction ptybij2 prefl_th ptrans_th fname pwth =
                             targs <- mapM (mkComb mk <=< mkComb eqv) rvs
                             th <- primINST [(rtm, eqvx)] tybij2
                             thTm <- lHand $ concl th
-                            th2 <- ruleEXISTS thTm xtm $ primREFL eqvx
-                            dme_th <- primEQ_MP th th2
+                            dme_th <- primEQ_MP th . ruleEXISTS thTm xtm $ 
+                                        primREFL eqvx
                             ith <- primINST (zip evs targs) eth
                             rvs_ths <- mapM (\ v -> primINST [(xtm, v)] dme_th) rvs
                             jth <- ruleSUBS rvs_ths ith
@@ -184,9 +184,9 @@ liftFunction ptybij2 prefl_th ptrans_th fname pwth =
                                            as <- ruleCONJUNCTS th2b
                                            bs <- mapM primREFL qvs
                                            let ethlist = as ++ bs
-                                           ethlist' <- mapM (\ v -> findM (\ th -> do v' <- lHand v
-                                                                                      c <- lHand $ concl th
-                                                                                      return $! v' == c) ethlist) hyps 
+                                           ethlist' <- mapM (\ v -> findM (\ thm -> do v' <- lHand v
+                                                                                       c <- lHand $ concl thm
+                                                                                       return $! v' == c) ethlist) hyps 
                                            th2c <- foldr1M ruleCONJ ethlist'
                                            th2d <- ruleMATCH_MP wth th2c
                                            th2e <- (primTRANS th2d th2a) 
@@ -203,13 +203,13 @@ liftFunction ptybij2 prefl_th ptrans_th fname pwth =
                             th9 <- ruleDISCH_ALL th2
                             th10 <- ruleIMP_ANTISYM th9 =<< ruleDISCH_ALL th8
                             th11 <- primTRANS jth =<< ruleAP_TERM apop =<< primABS u th10
-                            let fconv = if isEq con then Conv $ \ tm -> thmSELECT_LEMMA >>= \ th -> runConv (convREWR th) tm
+                            let fconv = if isEq con then Conv $ \ tm -> thmSELECT_LEMMA >>= \ thm -> runConv (convREWR thm) tm
                                         else convRAND convETA
                             th12 <- ruleCONV (convRAND fconv) th11
                             th13 <- ruleGSYM th12
                             acid' <- openLocalStateHOL (LiftedFunctions mapEmpty)
                             updateHOL acid' (AddLiftedFunction fname (eth, th13))
-                            createCheckpointAndCloseHOL acid'
+                            closeAcidStateHOL acid'
                             return (eth, th13)
                     _ -> fail "not an equation"
                 _ -> fail "term of improper form"

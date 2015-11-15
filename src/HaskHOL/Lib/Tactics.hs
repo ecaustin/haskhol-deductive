@@ -1,10 +1,10 @@
 {-# LANGUAGE FlexibleInstances, TypeSynonymInstances, UndecidableInstances #-}
 {-|
   Module:    HaskHOL.Lib.Tactics
-  Copyright: (c) The University of Kansas 2013
+  Copyright: (c) Evan Austin 2015
   LICENSE:   BSD3
 
-  Maintainer:  ecaustin@ittc.ku.edu
+  Maintainer:  e.c.austin@gmail.com
   Stability:   unstable
   Portability: unknown
 -}
@@ -450,8 +450,9 @@ tacCONV conv g@(Goal asl w) =
                      | otherwise -> fail "tacCONV: bad equation"
                  _ -> fail "tacCONV: not an equation"
     where justification :: BoolCtxt thry => HOLThm -> Justification cls thry
-          justification th' i [thm] = do th'' <- ruleINSTANTIATE_ALL i th'
-                                         primEQ_MP th'' thm
+          justification th' i [thm] = 
+              do th'' <- ruleINSTANTIATE_ALL i th'
+                 primEQ_MP th'' thm
           justification _ _ _       = fail "tacCONV: improper justification"
                                                                  
 -- equality tactics
@@ -618,33 +619,36 @@ tacEXISTS _ _ = fail "tacEXISTS: goal not existentially quantified."
 
 tacX_CHOOSE :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
             => tm -> ThmTactic thm cls thry
-tacX_CHOOSE ptm pthm (Goal asl w@(Exists x bod)) =
+tacX_CHOOSE ptm pthm (Goal asl w) = note "tacX_CHOOSE" $
     do x' <- toHTm ptm
        xth <- toHThm pthm
-       xth' <- primASSUME =<< varSubst [(x, x')] bod
-       let avoids = foldr (union . frees . concl . snd) 
-                          (frees w `union` thmFrees xth) asl
-       if x' `elem` avoids 
-          then fail "tacX_CHOOSE: provided variable is free in provided theorem"
-          else return . GS nullMeta [Goal (("", xth'):asl) w] $ 
-                          justification x' xth
+       case concl xth of
+         Exists x bod ->
+             do xth' <- primASSUME =<< varSubst [(x, x')] bod
+                let avoids = foldr (union . frees . concl . snd) 
+                             (frees w `union` thmFrees xth) asl
+                if x' `elem` avoids 
+                then fail "provided variable is free in provided theorem."
+                else return . GS nullMeta [Goal (("", xth'):asl) w] $ 
+                                justification x' xth
+         _ -> fail "not an existential theorem."
   where justification :: BoolCtxt thry 
                       => HOLTerm -> HOLThm -> Justification cls thry
         justification x' xth i [th] = 
             do xth2 <- ruleINSTANTIATE_ALL i xth
                ruleCHOOSE x' xth2 th
         justification _ _ _ _       = fail "tacX_CHOOSE: improper justification"
-tacX_CHOOSE _ _ _ = fail "tacX_CHOOSE: goal not existentially quantified."
 
 tacCHOOSE :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
-tacCHOOSE pth (Goal asl w@(Exists x _)) =
-    (do xth <- toHThm pth
-        let avoids = foldr (union . thmFrees . snd) 
-                     (frees w `union` thmFrees xth) asl
-        x' <- mkPrimedVar avoids x
-        tacX_CHOOSE x' xth $ Goal asl w)
-    <?> "tacCHOOSE"
-tacCHOOSE _ _ = fail "tacCHOOSE: goal not existentially quantified."
+tacCHOOSE pth (Goal asl w) = 
+    do xth <- toHThm pth
+       case concl xth of
+         Exists x _ ->
+           let avoids = foldr (union . thmFrees . snd) 
+                          (frees w `union` thmFrees xth) asl in
+             (tacX_CHOOSE (mkPrimedVar avoids x) xth $ Goal asl w) 
+              <?> "tacCHOOSE"
+         _ -> fail "tacCHOOSE: not an existential theorem."
 
 tacCONJ :: BoolCtxt thry => Tactic cls thry
 tacCONJ (Goal asl (l :/\ r)) =
@@ -780,9 +784,9 @@ tacSTRIP_ASSUME :: (BoolCtxt thry, HOLThmRep thm cls thry)
                 => ThmTactic thm cls thry
 tacSTRIP_ASSUME pthm g =
     do thm <- toHThm pthm 
-       (_REPEAT _STRIP_THM_THEN
-        (\ gth -> _FIRST [tacCONTR gth, tacACCEPT gth,
-                          tacDISCARD gth, tacASSUME gth])) thm g
+       _REPEAT _STRIP_THM_THEN
+         (\ gth -> _FIRST [tacCONTR gth, tacACCEPT gth,
+                           tacDISCARD gth, tacASSUME gth]) thm g
   where tacDISCARD :: ThmTactic HOLThm cls thry
         tacDISCARD thm gl@(Goal asl _) =
             let tm = concl thm in

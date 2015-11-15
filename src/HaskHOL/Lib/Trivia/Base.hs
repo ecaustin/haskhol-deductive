@@ -8,6 +8,7 @@ import HaskHOL.Lib.Tactics
 import HaskHOL.Lib.Simp
 import HaskHOL.Lib.Classic
 
+
 thmEXISTS_ONE_REP :: ClassicCtxt thry => HOL cls thry HOLThm
 thmEXISTS_ONE_REP = cacheProof "thmEXISTS_ONE_REP" ctxtClassic .
     prove [txt| ?b:bool . b |] $

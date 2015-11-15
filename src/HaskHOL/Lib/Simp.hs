@@ -1,10 +1,10 @@
 {-# LANGUAGE FlexibleInstances, ScopedTypeVariables, TypeSynonymInstances #-}
 {-|
   Module:    HaskHOL.Lib.Simp
-  Copyright: (c) The University of Kansas 2013
+  Copyright: (c) Evan Austin 2015
   LICENSE:   BSD3
 
-  Maintainer:  ecaustin@ittc.ku.edu
+  Maintainer:  e.c.austin@gmail.com
   Stability:   unstable
   Portability: unknown
 -}
@@ -576,7 +576,7 @@ setBasicRewrites thl =
     do canonThl <- foldrM (mkRewrites False) [] thl
        acid <- openLocalStateHOL (Rewrites [])
        updateHOL acid (PutRewrites canonThl)
-       createCheckpointAndCloseHOL acid
+       closeAcidStateHOL acid
        rehashConvnet
 
 extendBasicRewrites :: (BoolCtxt thry, HOLThmRep thm Theory thry) 
@@ -586,7 +586,7 @@ extendBasicRewrites (th:ths) =
     do canonThs <- mkRewrites False th ([] :: [HOLThm])
        acid <- openLocalStateHOL (Rewrites [])
        updateHOL acid (AddRewrites canonThs)
-       createCheckpointAndCloseHOL acid
+       closeAcidStateHOL acid
        rehashConvnet
        extendBasicRewrites ths
 
@@ -605,7 +605,7 @@ setBasicConvs cnvs =
                          do tm' <- toHTm tm
                             return (x, (tm', HINT (unpack x) m))) cnvs
        updateHOL acid $ PutConvs cnvs'
-       createCheckpointAndCloseHOL acid
+       closeAcidStateHOL acid
        rehashConvnet
 
 extendBasicConvs :: (BoolCtxt thry, HOLTermRep tm Theory thry) 
@@ -615,7 +615,7 @@ extendBasicConvs ((name, (ptm, m)):cnvs) =
     do tm <- toHTm ptm
        acid <- openLocalStateHOL (BasicConvs [])
        updateHOL acid (AddConv (name, (tm, HINT (unpack name) m)))
-       createCheckpointAndCloseHOL acid
+       closeAcidStateHOL acid
        rehashConvnet
        extendBasicConvs cnvs
 
@@ -641,7 +641,7 @@ rehashConvnet =
      net <- foldrM (netOfThm True) convs rewrites
      acid <- openLocalStateHOL (ConversionNet netEmpty)
      updateHOL acid (PutNet net)
-     createCheckpointAndCloseHOL acid
+     closeAcidStateHOL acid
 
 -- default congruences
 data Congruences = Congruences ![HOLThm] deriving Typeable
@@ -669,7 +669,7 @@ setBasicCongs pthl =
     do thl <- mapM toHThm pthl
        acid <- openLocalStateHOL (Congruences [])
        updateHOL acid (PutCongruences thl)
-       createCheckpointAndCloseHOL acid
+       closeAcidStateHOL acid
 
 extendBasicCongs :: HOLThmRep thm Theory thry => [thm] -> HOL Theory thry ()
 extendBasicCongs [] = return ()
@@ -677,7 +677,7 @@ extendBasicCongs (th:ths) =
     do th' <- toHThm th
        acid <- openLocalStateHOL (Congruences [])
        updateHOL acid (AddCongruence th')
-       createCheckpointAndCloseHOL acid
+       closeAcidStateHOL acid
        extendBasicCongs ths
 
 basicCongs :: HOL cls thry [HOLThm]

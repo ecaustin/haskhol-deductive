@@ -24,4 +24,4 @@ addMonoThm pthm =
     do mthm <- toHThm pthm
        acid <- openLocalStateHOL (MonoThms [])
        updateHOL acid (AddMono mthm)
-       createCheckpointAndCloseHOL acid
+       closeAcidStateHOL acid

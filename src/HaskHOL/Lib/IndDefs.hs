@@ -1,9 +1,9 @@
 {-|
   Module:    HaskHOL.Lib.IndDefs
-  Copyright: (c) The University of Kansas 2013
+  Copyright: (c) Evan Austin 2015
   LICENSE:   BSD3
 
-  Maintainer:  ecaustin@ittc.ku.edu
+  Maintainer:  e.c.austin@gmail.com
   Stability:   unstable
   Portability: unknown
 -}
@@ -548,7 +548,7 @@ newInductiveDefinition lbl ptm =
               let trip = (rth, ith, cth)
               acid' <- openLocalStateHOL (IndDefs mapEmpty)
               updateHOL acid' (AddInductiveDef lbl trip)
-              createCheckpointAndCloseHOL acid'
+              closeAcidStateHOL acid'
               return trip
   where makeDefinitions :: BoolCtxt thry => HOLThm -> HOL Theory thry HOLThm
         makeDefinitions thm =

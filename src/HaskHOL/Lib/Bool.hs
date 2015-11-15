@@ -1,9 +1,9 @@
 {-|
   Module:    HaskHOL.Lib.Bool
-  Copyright: (c) The University of Kansas 2013
+  Copyright: (c) Evan Austin 2015
   LICENSE:   BSD3
 
-  Maintainer:  ecaustin@ittc.ku.edu
+  Maintainer:  e.c.austin@gmail.com
   Stability:   unstable
   Portability: unknown
 
@@ -454,7 +454,7 @@ ruleEQ_IMP :: (BoolCtxt thry, HOLThmRep thm cls thry)
 ruleEQ_IMP pthm = note "ruleEQ_IMP" $
     do thm <- toHThm pthm
        case concl thm of
-         (l :<=> r) ->
+         (l := r) ->
            let instFun = primINST [ (tmP, l), (tmQ, r) ] in
              do (pth1', pth2') <- pairMapM instFun ( ruleEQ_IMP_pth1
                                                    , ruleEQ_IMP_pth2 )
@@ -737,10 +737,10 @@ defEXISTS = cacheProof "defEXISTS" ctxtBool $ getBasicDefinition "?"
 ruleEXISTS :: (BoolCtxt thry, HOLTermRep tm1 cls thry, HOLTermRep tm2 cls thry,
                HOLThmRep thm cls thry) 
            => tm1 -> tm2 -> thm -> HOL cls thry HOLThm
-ruleEXISTS ptm1 ptm2 thm = 
+ruleEXISTS ptm1 ptm2 thm =
     (do atm <- toHTm ptm1
         stm <- toHTm ptm2
-        ab <- rator atm
+        ab <- rand atm
         th1 <- runConv convBETA =<< mkComb ab stm
         pth' <- rulePINST [(tyA, typeOf stm)] 
                   [ (tmPred, ab), (tmX, stm) ] ruleEXISTS_pth
@@ -1071,9 +1071,12 @@ ruleEQF_ELIM pthm = note "ruleEQF_ELIM" $
 -}
 ruleCONTR :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
           => tm -> thm -> HOL cls thry HOLThm
-ruleCONTR tm thm =
-    (rulePROVE_HYP thm $ 
-       primINST [(tmP, tm)] ruleCONTR_pth) <?> "ruleCONTR"
+ruleCONTR tm pthm =
+    do thm <- toHThm pthm
+       case concl thm of
+         F -> (rulePROVE_HYP thm $ 
+                 primINST [(tmP, tm)] ruleCONTR_pth) <?> "ruleCONTR"
+         _ -> fail "ruleCONTR: not a contradiction."
   where ruleCONTR_pth :: BoolCtxt thry => HOL cls thry HOLThm
         ruleCONTR_pth = cacheProof "ruleCONTR_pth" ctxtBool .
             ruleSPEC tmP . primEQ_MP defFALSE $ primASSUME [txt| F |]

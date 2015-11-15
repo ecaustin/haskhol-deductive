@@ -1,9 +1,9 @@
 {-|
   Module:    HaskHOL.Lib.Classic
-  Copyright: (c) The University of Kansas 2013
+  Copyright: (c) Evan Austin 2015
   LICENSE:   BSD3
 
-  Maintainer:  ecaustin@ittc.ku.edu
+  Maintainer:  e.c.austin@gmail.com
   Stability:   unstable
   Portability: unknown
 -}
@@ -395,7 +395,7 @@ newTypeDefinition tyname absname repname pth =
                 acid' <- openLocalStateHOL (TypeDefs mapEmpty)
                 updateHOL acid'
                     (AddTypeDef tyname ((absname, repname), (th, tth)))
-                createCheckpointAndCloseHOL acid'
+                closeAcidStateHOL acid'
                 return tth
 
 getTypeDefinition :: Text -> HOL cls thry HOLThm
@@ -482,7 +482,7 @@ newSpecification names th =
              do sth <- foldlM specify th names
                 acid' <- openLocalStateHOL (Specifications [])
                 updateHOL acid' (AddSpecification names th sth)
-                createCheckpointAndCloseHOL acid'
+                closeAcidStateHOL acid'
                 return sth
                                       
 getSpecification :: [Text] -> HOL cls thry HOLThm

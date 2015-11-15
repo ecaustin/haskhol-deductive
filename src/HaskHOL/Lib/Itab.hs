@@ -1,15 +1,18 @@
 {-|
   Module:    HaskHOL.Lib.Itab
-  Copyright: (c) The University of Kansas 2013
+  Copyright: (c) Evan Austin 2015
   LICENSE:   BSD3
 
-  Maintainer:  ecaustin@ittc.ku.edu
+  Maintainer:  e.c.austin@gmail.com
   Stability:   unstable
   Portability: unknown
 -}
 module HaskHOL.Lib.Itab
     ( tacITAUT
     , ruleITAUT
+    , tacITAUT_PRIM
+    , tacUNIFY_ACCEPT
+    , tacRIGHT_REVERSIBLE
     ) where
 
 import HaskHOL.Core

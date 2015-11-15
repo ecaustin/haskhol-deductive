@@ -194,7 +194,7 @@ addIndDef (name, (n, pth1, pth2)) =
        th2 <- toHThm pth2
        acid <- openLocalStateHOL (IndTypeStore mapEmpty)
        updateHOL acid (AddIndDefPrim name (n, th1, th2))
-       createCheckpointAndCloseHOL acid
+       closeAcidStateHOL acid
 
 getIndDefs :: HOL cls thry (Map Text (Int, HOLThm, HOLThm))
 getIndDefs =

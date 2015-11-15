@@ -1,9 +1,9 @@
 {-|
   Module:    HaskHOL.Lib.DRule
-  Copyright: (c) The University of Kansas 2013
+  Copyright: (c) Evan Austin 2015
   LICENSE:   BSD3
 
-  Maintainer:  ecaustin@ittc.ku.edu
+  Maintainer:  e.c.austin@gmail.com
   Stability:   unstable
   Portability: unknown
 -}
@@ -27,6 +27,7 @@ module HaskHOL.Lib.DRule
     , convHIGHER_REWRITE
     , newDefinition
     , getDefinition
+    , partInsts
     ) where
 
 import HaskHOL.Core
@@ -723,7 +724,7 @@ newDefinition (lbl, ptm) = note "newDefinition" $
                          th <- foldrM ruleGEN genthm rvs
                          acid' <- openLocalStateHOL (TheDefinitions mapEmpty)
                          updateHOL acid' (InsertDefinition lbl th)
-                         createCheckpointAndCloseHOL acid'
+                         closeAcidStateHOL acid'
                          return th
                 _ -> fail $ "Non-variable constructor in LHS pattern."
 
