@@ -727,9 +727,10 @@ convONCE_REWRITE thl = Conv $ \ tm ->
        runConv (convGENERAL_REWRITE False convONCE_DEPTH net thl) tm
 
 -- rewriting rules and tactics
-ruleGEN_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry)
+ruleGEN_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry, 
+                    HOLThmRep thm2 cls thry)
                 => (Conversion cls thry -> Conversion cls thry) -> [thm] 
-                -> HOLThm -> HOL cls thry HOLThm
+                -> thm2 -> HOL cls thry HOLThm
 ruleGEN_REWRITE cnvl thl = ruleCONV (convGEN_REWRITE cnvl thl)
 
 rulePURE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry,
@@ -746,8 +747,9 @@ ruleREWRITE_NIL :: (BoolCtxt thry, HOLThmRep thm cls thry)
                 => thm -> HOL cls thry HOLThm
 ruleREWRITE_NIL = ruleCONV convREWRITE_NIL
 
-rulePURE_ONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
-                      -> HOLThm -> HOL cls thry HOLThm
+rulePURE_ONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry, 
+                          HOLThmRep thm2 cls thry) 
+                      => [thm] -> thm2 -> HOL cls thry HOLThm
 rulePURE_ONCE_REWRITE thl = ruleCONV (convPURE_ONCE_REWRITE thl)
 
 ruleONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm1 cls thry,
