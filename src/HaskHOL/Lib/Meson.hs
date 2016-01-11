@@ -711,7 +711,8 @@ tacPURE_MESON ref minVal maxVal inc goal =
                tm <- holNegate $ concl ith
                finishRule =<< ruleDISCH tm ith
 
-      folOfHOLClause :: HOLThm -> HOL cls thry [(([FOLAtom], FOLAtom), (Int, HOLThm))]
+      folOfHOLClause :: HOLThm 
+                     -> HOL cls thry [(([FOLAtom], FOLAtom), (Int, HOLThm))]
       folOfHOLClause th =
           let lconsts = catFrees $ hyp th
               tm = concl th
@@ -727,7 +728,8 @@ tacPURE_MESON ref minVal maxVal inc goal =
           do rawrules <- foldrM (\ x ys -> do xs <- folOfHOLClause x
                                               return $! union xs ys) [] thms
              let prs = setify $ map (fst . snd . fst) rawrules
-                 prules = map (\ t -> (t, filter ((== t) . fst . snd . fst) rawrules)) prs
+                 prules = map (\ t -> (t, filter ((== t) . fst . snd . fst) 
+                                            rawrules)) prs
                  srules = sort (\ (p, _) (q, _) -> abs p <= abs q) prules
              return srules
 
@@ -808,9 +810,11 @@ tacPURE_MESON ref minVal maxVal inc goal =
           do currentvars <- liftM vstore $ readHOLRef ref
              case lookup v currentvars of
                Just x  -> return x
-               Nothing -> do n <- incVCounter
-                             modifyHOLRef ref $ \ st -> st { vstore = (v, n) : currentvars }
-                             return n
+               Nothing -> 
+                   do n <- incVCounter
+                      modifyHOLRef ref $ \ st -> 
+                          st { vstore = (v, n) : currentvars }
+                      return n
 
 convQUANT_BOOL :: ClassicCtxt thry => Conversion cls thry
 convQUANT_BOOL = 
@@ -876,7 +880,7 @@ tacMESON :: (TriviaCtxt thry, HOLThmRep thm cls thry) => [thm]
 tacMESON ths = _POP_ASSUM_LIST (const _ALL) `_THEN` tacASM_MESON ths
 
 tacMESON_NIL :: TriviaCtxt thry => Tactic cls thry
-tacMESON_NIL = _POP_ASSUM_LIST (const _ALL) `_THEN` tacASM_MESON_NIL
+tacMESON_NIL = tacMESON ([] :: [HOLThm])
 
 ruleMESON :: (TriviaCtxt thry, HOLThmRep thm cls thry,
               HOLTermRep tm cls thry) => [thm] -> tm -> HOL cls thry HOLThm

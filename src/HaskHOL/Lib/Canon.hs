@@ -107,7 +107,7 @@ pthNotForall :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotForall = getProof "pthNotForall" <|> head pthNots
 
 pthNotExists :: TriviaCtxt thry => HOL cls thry HOLThm
-pthNotExists = getProof "pthNotForall" <|> pthNots !! 1
+pthNotExists = getProof "pthNotExists" <|> pthNots !! 1
 
 pthNotExu :: TriviaCtxt thry => HOL cls thry HOLThm
 pthNotExu = getProof "pthNotExu" <|> pthNots !! 2
@@ -131,13 +131,18 @@ convPRESIMP = Conv $ \ tm ->
               ] in
       runConv (convGEN_REWRITE convTOP_DEPTH ths) tm
 
-ruleCONJ_ACI :: BoolCtxt thry => HOLTerm -> HOL cls thry HOLThm
-ruleCONJ_ACI (p := p')
-    | p == p' = primREFL p
-    | otherwise =
-        do th <- useFun p' =<< mkFun funcEmpty =<< primASSUME p
-           th' <- useFun p =<< mkFun funcEmpty =<< primASSUME p'
-           ruleIMP_ANTISYM (ruleDISCH_ALL th) $ ruleDISCH_ALL th'
+ruleCONJ_ACI :: (BoolCtxt thry, HOLTermRep tm cls thry) 
+             => tm -> HOL cls thry HOLThm
+ruleCONJ_ACI ptm =
+    do tm <- toHTm ptm
+       case tm of
+         (p := p')
+             | p == p' -> primREFL p
+             | otherwise ->
+                 do th <- useFun p' =<< mkFun funcEmpty =<< primASSUME p
+                    th' <- useFun p =<< mkFun funcEmpty =<< primASSUME p'
+                    ruleIMP_ANTISYM (ruleDISCH_ALL th) $ ruleDISCH_ALL th'
+         _ -> fail "ruleCONJ_ACI: not an equational term."
   where useFun :: BoolCtxt thry => HOLTerm -> Func HOLTerm HOLThm
                -> HOL cls thry HOLThm
         useFun (l :/\ r) fn =
@@ -151,7 +156,6 @@ ruleCONJ_ACI (p := p')
             do (th1, th2) <- ruleCONJ_PAIR th
                flip mkFun th1 =<< mkFun fn th2
         mkFun fn th = return $! (concl th |-> th) fn
-ruleCONJ_ACI _ = fail "ruleCONJ_ACI: not an equation."
 
 
 convSKOLEM :: ClassicCtxt thry => Conversion cls thry 
@@ -620,7 +624,7 @@ nnfDConv cf baseconvs (l :==> r) =
         th2 <- primTRANS rth1 $ primMK_COMB rth2 thRn
         return (th1, th2))
     <?> "nnfDConv: implication case"
-nnfDConv True baseconvs (l := r) =
+nnfDConv True baseconvs (l :<=> r) =
     (do (thLp, thLn) <- nnfDConv True baseconvs l
         (thRp, thRn) <- nnfDConv True baseconvs r
         lth1 <- primINST [(tmP, l), (tmQ, r)] pthEq'
@@ -635,7 +639,7 @@ nnfDConv True baseconvs (l := r) =
         th2 <- primTRANS rth1 . primMK_COMB rth3 $ primMK_COMB rth4 thRn
         return (th1, th2))
     <?> "nnfDConv: true equality case"
-nnfDConv False baseconvs (l := r) =
+nnfDConv False baseconvs (l :<=> r) =
     (do (thLp, thLn) <- nnfDConv False baseconvs l
         (thRp, thRn) <- nnfDConv False baseconvs r
         lth1 <- primINST [(tmP, l), (tmQ, r)] pthEq
@@ -747,7 +751,7 @@ nnfConv' cf baseconvs@(base1, base2) = Conv $ \ tm ->
               ?rconv = nnfConv'
               ?btm = tmAnd in
             boolCase "implication" l r
-      (l := r) ->
+      (l :<=> r) ->
           (do (thLp, thLn) <- nnfDConv cf base2 l
               (thRp, thRn) <- nnfDConv cf base2 r
               pth <- if cf then pthNotEq' else pthNotEq
@@ -852,7 +856,7 @@ nnfConv cf baseconvs@(base1, base2) = Conv $ \ tm ->
               lth2 <- ruleAP_TERM tmOr thLn
               primTRANS lth1 $ primMK_COMB lth2 thRp)
           <?> "nnfConv: implication case"
-      (l := r) ->
+      (l :<=> r) ->
           (do (thLp, thLn) <- nnfDConv cf base2 l
               (thRp, thRn) <- nnfDConv cf base2 r
               if cf

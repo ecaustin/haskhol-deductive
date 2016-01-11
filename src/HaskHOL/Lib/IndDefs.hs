@@ -49,8 +49,8 @@ stripNComb n tm = stripRec n tm []
 ruleRIGHT_BETAS :: (HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
                 => [tm] -> thm -> HOL cls thry HOLThm
 ruleRIGHT_BETAS tms = 
-    itlistM (\ a -> ruleCONV (convRAND convBETA) . 
-                    flip ruleAP_THM a) tms <=< toHThm
+    revItlistM (\ a -> ruleCONV (convRAND convBETA) . 
+                       flip ruleAP_THM a) tms <=< toHThm
 
 ruleEXISTS_EQUATION :: (IndDefsCtxt thry, HOLTermRep tm cls thry, 
                         HOLThmRep thm cls thry) 
