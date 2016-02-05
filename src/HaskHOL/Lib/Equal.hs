@@ -84,11 +84,11 @@ lHand = rand <=< rator
 
 -- | Returns the left hand side of an equation.
 lhs :: MonadThrow m => HOLTerm -> m HOLTerm
-lhs = liftM fst . destEq
+lhs tm = fst `fmap` destEq tm
 
 -- | Returns the right hand side of an equation.
 rhs :: MonadThrow m => HOLTerm -> m HOLTerm
-rhs = liftM snd . destEq
+rhs tm = snd `fmap` destEq tm
 
 -- Basic Constructors for Equality
 
@@ -135,7 +135,7 @@ mkPrimedVar _ _ = fail "mkPrimedVar"
 ruleAP_TERM :: (HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
             => tm -> thm -> HOL cls thry HOLThm
 ruleAP_TERM tm thm =
-    (primMK_COMB (primREFL tm) thm) <?> "ruleAP_TERM"
+    primMK_COMB (primREFL tm) thm <?> "ruleAP_TERM"
 
 {-|@
  A |- f = g   x
@@ -152,7 +152,7 @@ ruleAP_TERM tm thm =
 ruleAP_THM :: (HOLThmRep thm cls thry, HOLTermRep tm cls thry) 
            => thm -> tm -> HOL cls thry HOLThm
 ruleAP_THM thm tm =
-    (primMK_COMB thm $ primREFL tm) <?> "ruleAP_THM"
+    primMK_COMB thm (primREFL tm) <?> "ruleAP_THM"
 
 {-|@
  A |- t1 = t2
@@ -184,7 +184,7 @@ ruleSYM pthm = note "ruleSYM" $
 ruleALPHA :: (HOLTermRep tm1 cls thry, HOLTermRep tm2 cls thry) 
           => tm1 -> tm2 -> HOL cls thry HOLThm
 ruleALPHA tm1 tm2 = 
-    (primTRANS (primREFL tm1) $ primREFL tm2) <?> "ruleALPHA"
+    primTRANS (primREFL tm1) (primREFL tm2) <?> "ruleALPHA"
 
 {-|@
  op   |- l1 = l2   |- r1 = r2       
@@ -299,7 +299,7 @@ convRATOR :: Conversion cls thry -> Conversion cls thry
 convRATOR conv = Conv $ \ tm -> note "convRATOR" $
     case tm of
        Comb l r -> 
-         (ruleAP_THM (runConv conv l) r) <?> "conversion failed."
+         ruleAP_THM (runConv conv l) r <?> "conversion failed."
        _ -> fail' "not a combination"
 
 {-|
@@ -315,7 +315,7 @@ convRAND :: Conversion cls thry -> Conversion cls thry
 convRAND conv = Conv $ \ tm -> note "convRAND" $
     case tm of
        Comb l r -> 
-         (ruleAP_TERM l $ runConv conv r) <?> "conversion failed."   
+         ruleAP_TERM l (runConv conv r) <?> "conversion failed."   
        _ -> fail' "not a combination"
 
 {-|
@@ -373,7 +373,7 @@ convABS conv = Conv $ \ tm ->
     case tm of
       Abs v@(Var _ ty) bod ->
           do th <- runConv conv bod <?> "convABS: conversion failed."
-             (primABS v th) <|> 
+             primABS v th <|> 
                do gv <- genVar ty
                   gbod <- runConv conv =<< varSubst [(v, gv)] bod
                   gth <- primABS gv gbod
@@ -416,7 +416,7 @@ convTYABS conv = Conv $ \ tm -> note "convTYABS" $
     case tm of
       TyAbs tv t -> 
           do th <- runConv conv t <?> "conversion failed."
-             (primTYABS tv th) <|> 
+             primTYABS tv th <|> 
                do gv <- genSmallTyVar
                   gbod <- runConv conv $ inst [(tv, gv)] t
                   gth <- primTYABS gv gbod
@@ -686,9 +686,9 @@ combQConv conv = Conv $ \ tm ->
     case tm of
       (Comb l r) -> 
           (do th <- runConv conv l
-              (primMK_COMB th $ runConv conv r)
-                <|> (ruleAP_THM th r))
-          <|> (ruleAP_TERM l $ runConv conv r)
+              primMK_COMB th (runConv conv r)
+                <|> ruleAP_THM th r)
+          <|> ruleAP_TERM l (runConv conv r)
       _ -> fail' "combQConv"
 
 repeatqc :: Conversion cls thry -> Conversion cls thry

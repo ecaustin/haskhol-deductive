@@ -75,7 +75,7 @@ defineQuotientType tyname absname repname tm =
                   eqvx <- mkComb eqv x
                   exx <- mkExists x =<< mkEq s eqvx
                   predtm <- mkAbs s exx
-                  th0 <- runConv convBETA =<< mkComb predtm eqvx
+                  th0 <- runConv convBETA $ mkComb predtm eqvx
                   rtm <- rand $ concl th0
                   th1 <- ruleEXISTS rtm x $ primREFL eqvx
                   th2 <- ruleSYM th0
@@ -126,7 +126,7 @@ liftFunction ptybij2 refl_th trans_th fname pwth =
                 qvs <- mapM lhs eqs
                 let ety = typeOf mrt
                     evs = variants wfvs $ map (\ (Var v _) -> mkVar v ety) rvs
-                mems <- map2M (\ rv ev -> flip mkComb rv =<< mkComb dest ev)
+                mems <- map2M (\ rv ev -> mkComb (mkComb dest ev) rv)
                           rvs evs
                 (lcon, rcon) <- destComb con
                 let u = variant (evs ++ wfvs) $ mkVar "u" $ typeOf rcon
@@ -146,7 +146,7 @@ liftFunction ptybij2 refl_th trans_th fname pwth =
                 dth <- newDefinition (fname, edef)
                 eth <- foldlM (\ th v -> ruleCONV (convRAND convBETA) =<<
                                            (ruleAP_THM th v)) dth newargs
-                targs <- mapM (mkComb mk <=< mkComb eqv) rvs
+                targs <- mapM (mkComb mk . mkComb eqv) rvs
                 dme_th <- do th <- primINST [(rtm, eqvx)] tybij2
                              ltm <- lhs $ concl th
                              primEQ_MP th . ruleEXISTS ltm xtm $ primREFL eqvx

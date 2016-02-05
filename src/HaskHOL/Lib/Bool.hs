@@ -741,7 +741,7 @@ ruleEXISTS ptm1 ptm2 thm =
     (do atm <- toHTm ptm1
         stm <- toHTm ptm2
         ab <- rand atm
-        th1 <- runConv convBETA =<< mkComb ab stm
+        th1 <- runConv convBETA $ mkComb ab stm
         pth' <- rulePINST [(tyA, typeOf stm)] 
                   [ (tmPred, ab), (tmX, stm) ] ruleEXISTS_pth
         th2 <- primEQ_MP (ruleSYM th1) thm

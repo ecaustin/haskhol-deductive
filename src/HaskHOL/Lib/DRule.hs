@@ -31,6 +31,8 @@ module HaskHOL.Lib.DRule
     ) where
 
 import HaskHOL.Core
+import qualified HaskHOL.Core.Kernel as K (mkComb)
+import qualified HaskHOL.Core.Basics as B (subst)
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Equal
 
@@ -179,8 +181,7 @@ instantiate (xs, tmenv, tyenv) x =
                foldlM (\ l a -> do (v, b) <- destAbs l
                                    varSubst [(v, a)] b) lam args 
 
-        hoBetas :: (MonadCatch m, MonadThrow m) 
-                => HOLTerm -> HOLTerm -> m HOLTerm
+        hoBetas :: HOLTerm -> HOLTerm -> Catch HOLTerm
         hoBetas Var{} _ = fail' "hoBetas"
         hoBetas Const{} _ = fail' "hoBetas"
         hoBetas (Abs _ bod1) (Abs bv bod2) = 
@@ -193,10 +194,10 @@ instantiate (xs, tmenv, tyenv) x =
               else case (pat, tm) of
                       (Comb lpat rpat, Comb ltm rtm) -> 
                           do { lth <- hoBetas lpat ltm
-                             ; (mkComb lth =<< hoBetas rpat rtm) <|> 
-                                 mkComb lth rtm
+                             ; (K.mkComb lth =<< hoBetas rpat rtm) <|> 
+                                 K.mkComb lth rtm
                              } <|> 
-                             (mkComb ltm =<< hoBetas rpat rtm)
+                             (K.mkComb ltm =<< hoBetas rpat rtm)
                       _ -> fail' "hoBetas"
 
 {-|
@@ -281,8 +282,7 @@ ruleINSTANTIATE_ALL i@(_, tmenv, (tys, opTys, opOps)) pthm =
                     funpowM (length rhyps) ruleUNDISCH thm2
 
 -- term matching
-termMatch :: (MonadCatch m, MonadThrow m) 
-          => [HOLTerm] -> HOLTerm -> HOLTerm -> m Instantiation
+termMatch :: MonadCatch m => [HOLTerm] -> HOLTerm -> HOLTerm -> m Instantiation
 termMatch lconsts vtm ctm = 
     do pinsts_homs <- termPMatch lconsts [] vtm ctm ([], [])
        tyenv <- getTypeInsts (fst pinsts_homs) ([], [], [])
@@ -349,9 +349,9 @@ getTypeInsts insts i =
                                     typeMatch ty (typeOf t) sofar
                                 _ -> fail' "getTypeInsts") i insts
 
-termHOMatch :: (MonadCatch m, MonadThrow m) 
-            => [HOLTerm] -> SubstTrip  
-            -> (HOLTermEnv, [(HOLTermEnv, HOLTerm, HOLTerm)]) -> m HOLTermEnv
+termHOMatch :: MonadCatch m => [HOLTerm] -> SubstTrip  
+            -> (HOLTermEnv, [(HOLTermEnv, HOLTerm, HOLTerm)]) 
+            -> m HOLTermEnv
 termHOMatch _ _ (insts, []) = return insts
 termHOMatch lconsts tyenv@(tys, opTys, opOps) 
             (insts, homs@((env, vtm, ctm):rest)) = 
@@ -385,7 +385,7 @@ termHOMatch lconsts tyenv@(tys, opTys, opOps)
                                                else let ty = typeOf p
                                                         p' = unsafeGenVar ty in
                                                       return (p, p')) pats
-                               ctm' <- subst ginsts ctm
+                               ctm' <- B.subst ginsts ctm
                                let gvs = map snd ginsts
                                abstm <- listMkAbs gvs ctm'
                                vinsts <- safeInsertA (vhop, abstm) insts
@@ -443,57 +443,54 @@ mkDummy =
 
 
 -- first order term unification
-augment1 :: MonadThrow m 
-         => HOLTermEnv -> (HOLTerm, HOLTerm) -> m (HOLTerm, HOLTerm)
-augment1 sofar (x, s) = 
-    do s' <- subst sofar s
-       if varFreeIn x s && s /= x 
-          then fail' "augment1"
-          else return (x, s')
-
-rawAugmentInsts :: MonadThrow m 
-                => (HOLTerm, HOLTerm) -> HOLTermEnv -> m HOLTermEnv
-rawAugmentInsts p insts = 
-    do insts' <- mapM (augment1 [p]) insts
-       return $! p:insts'
-
-augmentInsts :: MonadThrow m 
-             => (HOLTerm, HOLTerm) -> HOLTermEnv -> m HOLTermEnv
-augmentInsts (v, t) insts = 
-    do t' <- varSubst insts t
-       if t' == v 
-          then return insts
-          else if varFreeIn v t' then fail' "augmentInsts"
-               else rawAugmentInsts (v, t') insts
-
-unify :: MonadThrow m 
-      => [HOLTerm] -> HOLTerm -> HOLTerm -> HOLTermEnv -> m HOLTermEnv
-unify vars tm1 tm2 sofar
-    | tm1 == tm2 = return sofar
-    | isVar tm1 && tm1 `elem` vars =
-        case lookup tm1 sofar of
-          Just tm1' -> unify vars tm1' tm2 sofar
-          Nothing -> augmentInsts (tm1, tm2) sofar
-    | isVar tm2 && tm2 `elem` vars =
-        case lookup tm2 sofar of
-          Just tm2' -> unify vars tm1 tm2' sofar
-          Nothing -> augmentInsts (tm2, tm1) sofar
-    | otherwise = 
-        case (tm1, tm2) of
-          (Abs bv1 tm1', Abs bv2 bod) -> 
-            do tm2' <- subst [(bv2, bv1)] bod
-               unify vars tm1' tm2' sofar
-          (Comb l1 r1, Comb l2 r2) -> 
-            do sofar' <- unify vars r1 r2 sofar
-               unify vars l1 l2 sofar'
-          (_, _) -> fail' "unify"
-
-termUnify :: MonadThrow m => [HOLTerm] -> HOLTerm -> HOLTerm -> m Instantiation
-termUnify vars tm1 tm2 = 
-    do vars' <- unify vars tm1 tm2 []
+termUnify :: [HOLTerm] -> HOLTerm -> HOLTerm -> HOL cls thry Instantiation
+termUnify vs t1 t2 = 
+    do vars' <- unify vs t1 t2 []
        return ([], vars', ([], [], []))
+  where unify :: [HOLTerm] -> HOLTerm -> HOLTerm -> HOLTermEnv 
+              -> HOL cls thry HOLTermEnv
+        unify vars tm1 tm2 sofar
+            | tm1 == tm2 = return sofar
+            | isVar tm1 && tm1 `elem` vars =
+                case lookup tm1 sofar of
+                  Just tm1' -> unify vars tm1' tm2 sofar
+                  Nothing -> augmentInsts (tm1, tm2) sofar
+            | isVar tm2 && tm2 `elem` vars =
+                case lookup tm2 sofar of
+                  Just tm2' -> unify vars tm1 tm2' sofar
+                  Nothing -> augmentInsts (tm2, tm1) sofar
+            | otherwise = 
+                case (tm1, tm2) of
+                  (Abs bv1 tm1', Abs bv2 bod) -> 
+                      do tm2' <- subst [(bv2, bv1)] bod
+                         unify vars tm1' tm2' sofar
+                  (Comb l1 r1, Comb l2 r2) -> 
+                      do sofar' <- unify vars r1 r2 sofar
+                         unify vars l1 l2 sofar'
+                  (_, _) -> fail "unify"
 
-                   
+        augmentInsts :: (HOLTerm, HOLTerm) -> HOLTermEnv 
+                     -> HOL cls thry HOLTermEnv
+        augmentInsts (v, t) insts = 
+            do t' <- varSubst insts t
+               if t' == v 
+                  then return insts
+                  else if varFreeIn v t' then fail "augmentInsts"
+                  else rawAugmentInsts (v, t') insts
+
+        rawAugmentInsts :: (HOLTerm, HOLTerm) -> HOLTermEnv 
+                        -> HOL cls thry HOLTermEnv
+        rawAugmentInsts p insts = (:) p `fmap` mapM (augment1 [p]) insts
+
+        augment1 :: HOLTermEnv -> (HOLTerm, HOLTerm) 
+                 -> HOL cls thry (HOLTerm, HOLTerm)
+        augment1 sofar (x, s) = 
+            do s' <- subst sofar s
+               if varFreeIn x s && s /= x 
+                  then fail "augment1"
+                  else return (x, s')
+
+           
 -- modify variables at depth
 tryalpha :: HOLTerm -> HOLTerm -> HOLTerm
 tryalpha v tm = 
@@ -502,8 +499,7 @@ tryalpha v tm =
       _         -> tm
 
 
-deepAlpha :: (MonadCatch m, MonadThrow m) 
-          => [(Text, Text)] -> HOLTerm -> m HOLTerm
+deepAlpha :: [(Text, Text)] -> HOLTerm -> HOL cls thry HOLTerm
 deepAlpha [] tm = return tm
 deepAlpha env tm@(Abs var@(Var vn vty) bod) =
     let catchCase1 = mkAbs var =<< deepAlpha env bod in
@@ -515,9 +511,7 @@ deepAlpha env tm@(Abs var@(Var vn vty) bod) =
                 _ -> catchCase1
         Nothing -> catchCase1
 deepAlpha env (Comb l r) =
-    do  l' <- deepAlpha env l
-        r' <- deepAlpha env r
-        mkComb l' r'
+    mkComb (deepAlpha env l) (deepAlpha env r)
 deepAlpha _ tm = return tm
                                                                         
 

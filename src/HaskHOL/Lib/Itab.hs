@@ -86,7 +86,7 @@ tacITAUT_PRIM mvs n gl
                                  _NO) gl2) `_ORELSE`
          _FIRST_ASSUM (\ th -> let (v :==> _) = concl th in 
                                  (_SUBGOAL_THEN v 
-                                  (\ ath -> tacASSUME (ruleMP th ath)) `_THEN`
+                                   (tacASSUME . ruleMP th) `_THEN`
                                   tacITAUT_PRIM mvs (n-1) `_THEN` 
                                   _NO))) gl
 

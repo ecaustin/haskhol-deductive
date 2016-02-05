@@ -62,7 +62,7 @@ ruleEXISTS_EQUATION ptm pthm = note "ruleEXISTS_EQUATION" $
              do thm@(Thm _ c) <- toHThm pthm
                 p <- mkAbs l c
                 th1 <- ruleISPECL [p, r] ruleEXISTS_EQUATION_pth
-                th2 <- ruleSYM $ runConv convBETA =<< mkComb p l
+                th2 <- ruleSYM . runConv convBETA $ mkComb p l
                 ruleMP th1 . ruleGEN l . ruleDISCH tm $ primEQ_MP th2 thm
          _ -> fail "not an equation."
   where ruleEXISTS_EQUATION_pth :: IndDefsCtxt thry => HOL cls thry HOLThm
@@ -304,9 +304,9 @@ deriveCanonInductiveRelations cls =
               case stripForall tm of
                 (avs, Comb (Comb i l) r) -> 
                     do bth <- ruleRIGHT_BETAS avs $ primREFL dtm
-                       let quantify th = foldrM ruleMK_FORALL th avs
+                       let quantify thm = foldrM ruleMK_FORALL thm avs
                        munb <- quantify =<< ruleAP_THM (ruleAP_TERM i bth) r
-                       iunb <- quantify =<< ruleAP_TERM (mkComb i =<< f l) bth
+                       iunb <- quantify =<< ruleAP_TERM (mkComb i $ f l) bth
                        ir <- mkComb i r
                        junb <- quantify =<< ruleAP_TERM ir bth
                        return (munb, (iunb, junb))

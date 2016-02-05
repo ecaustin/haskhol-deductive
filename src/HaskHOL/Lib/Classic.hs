@@ -266,7 +266,7 @@ isCond tm =
 mkCond :: HOLTerm -> HOLTerm -> HOLTerm -> HOL cls thry HOLTerm
 mkCond b x y =
     (do c <- mkConst "COND" [(tyA, typeOf x)]
-        flip mkComb y =<< flip mkComb x =<< mkComb c b) 
+        mkComb (mkComb (mkComb c b) x) y )
     <?> "mkCond"
 
 convETA :: ClassicCtxt thry => Conversion cls thry

@@ -659,7 +659,7 @@ nnfDConv _ baseconvs (Comb q@(Const "!" ((ty :-> _) :-> _)) bod@(Abs x t)) =
         th1 <- ruleAP_TERM q $ primABS x thP
         p <- liftM (mkVar "P") $ mkFunTy ty tyBool
         rth1 <- primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pthNotForall
-        rth2 <- ruleAP_TERM tmNot $ primBETA =<< mkComb bod x
+        rth2 <- ruleAP_TERM tmNot . primBETA $ mkComb bod x
         rth3 <- primTRANS rth2 thN
         rth4 <- ruleMK_EXISTS x rth3
         th2 <- primTRANS rth1 rth4
@@ -670,7 +670,7 @@ nnfDConv cf baseconvs (Comb q@(Const "?" ((ty :-> _) :-> _)) bod@(Abs x t)) =
         th1 <- ruleAP_TERM q $ primABS x thP
         p <- liftM (mkVar "P") $ mkFunTy ty tyBool
         rth1 <- primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pthNotExists
-        rth2 <- ruleAP_TERM tmNot $ primBETA =<< mkComb bod x
+        rth2 <- ruleAP_TERM tmNot . primBETA $ mkComb bod x
         rth3 <- primTRANS rth2 thN
         rth4 <- ruleMK_FORALL x rth3
         th2 <- primTRANS rth1 rth4 
@@ -681,8 +681,8 @@ nnfDConv cf baseconvs (Comb (Const "?!" ((ty :-> _) :-> _)) bod@(Abs x t)) =
         let y = variant (x : frees t) x
         eq <- mkEq y x
         (ethP, ethN) <- baseconvs eq
-        bth <- primBETA =<< mkComb bod x
-        bth' <- runConv convBETA =<< mkComb bod y
+        bth <- primBETA $ mkComb bod x
+        bth' <- runConv convBETA $ mkComb bod y
         thP' <- primINST [(x, y)] thP
         thN' <- primINST [(x, y)] thN
         p <- liftM (mkVar "P") $ mkFunTy ty tyBool
@@ -778,8 +778,8 @@ nnfConv' cf baseconvs@(base1, base2) = Conv $ \ tm ->
               let y = variant (x:frees t) x 
               eq <- mkEq y x
               (_, ethN) <- base2 eq
-              bth <- primBETA =<< mkComb bod x
-              bth' <- runConv convBETA =<< mkComb bod y
+              bth <- primBETA $ mkComb bod x
+              bth' <- runConv convBETA $ mkComb bod y
               th1' <- instPth pthNotExu bod ty
               lth1 <- primTRANS (ruleAP_TERM tmNot bth) thN
               lth2 <- ruleMK_FORALL x lth1
@@ -816,7 +816,7 @@ nnfConv' cf baseconvs@(base1, base2) = Conv $ \ tm ->
             (do pth <- ?pth
                 thN <- runConv (nnfConv' ?cf baseconvs) t
                 th1 <- instPth pth bod ty
-                lth <- ruleAP_TERM tmNot $ primBETA =<< mkComb bod x
+                lth <- ruleAP_TERM tmNot . primBETA $ mkComb bod x
                 th2 <- ?rule x =<< primTRANS lth thN
                 primTRANS th1 th2)
              <?> ("nnfConv': " ++ err ++ " case")
@@ -886,8 +886,8 @@ nnfConv cf baseconvs@(base1, base2) = Conv $ \ tm ->
               let y = variant (x:frees t) x
               eq <- mkEq y x
               (ethP, _) <- base2 eq
-              bth <- primBETA =<< mkComb bod x
-              bth' <- runConv convBETA =<< mkComb bod y
+              bth <- primBETA $ mkComb bod x
+              bth' <- runConv convBETA $ mkComb bod y
               thN' <- primINST [(x, y)] thN
               p <- liftM (mkVar "P") $ mkFunTy ty tyBool
               th1 <- primINST [(p, bod)] $ primINST_TYPE [(tyA, ty)] pthExu
