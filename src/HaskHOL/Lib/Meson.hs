@@ -332,7 +332,7 @@ createEquivalenceAxioms :: TriviaCtxt thry => (HOLTerm, Int)
 createEquivalenceAxioms (eq, _) =
     (do ths@(th:_) <- sequence eqThms
         veqTm <- rator =<< rator (concl th)
-        tyins <- typeMatch (typeOf veqTm) (typeOf eq) ([], [], [])
+        tyins <- typeMatch (typeOf veqTm) (typeOf eq)
         mapM (primINST_TYPE_FULL tyins) ths)
     <?> "createEquivalenceAxioms"
   where eqThms :: TriviaCtxt thry => [HOL cls thry HOLThm]
@@ -415,9 +415,9 @@ grabConstants (l :\/ r) acc = grabConstants r $ grabConstants l acc
 grabConstants (Neg t) acc = grabConstants t acc
 grabConstants tm acc = findTerms isConst tm `union` acc
 
-matchConsts :: (MonadCatch m, MonadThrow m) => (HOLTerm, HOLTerm) -> m SubstTrip
+matchConsts :: (HOLTerm, HOLTerm) -> HOL cls thry SubstTrip
 matchConsts (Const s1 ty1, Const s2 ty2)
-    | s1 == s2 = typeMatch ty1 ty2 ([], [], [])
+    | s1 == s2 = typeMatch ty1 ty2
     | otherwise = fail' "matchConsts: consts of different name"
 matchConsts _ = fail' "matchConsts"
 

@@ -253,8 +253,7 @@ termOrder = dynOrder Nothing
             ord a b || (a == b && lexify ord as bs)
 
 -- create a net for a theorem
-netOfThm :: (MonadCatch m, MonadThrow m)
-         => Bool -> HOLThm -> Net GConversion -> m (Net GConversion)
+netOfThm :: Bool -> HOLThm -> Net GConversion -> HOL cls thry (Net GConversion)
 netOfThm rep th@(Thm asl tm) net = 
   let lconsts = catFrees asl
       matchable x = can (termMatch lconsts x) in
@@ -262,7 +261,7 @@ netOfThm rep th@(Thm asl tm) net =
       (l@(Abs x (Comb v@Var{} x')) := v')
           | x' == x && v' == v && x /= v ->
                 return $! netEnter lconsts (l, (1, BASEABS v th)) net
-          | otherwise -> fail' "netOfThm"
+          | otherwise -> fail "netOfThm"
       (l := r)
           | rep && l `freeIn` r ->
                 return $! netEnter lconsts (l, (1, EQT_REWR th)) net
@@ -283,21 +282,20 @@ netOfThm rep th@(Thm asl tm) net =
                                        (l, (3, ORD_IMP_REWR th)) net
                       else return $! netEnter lconsts 
                                        (l, (3, IMP_REWR Nothing th)) net
-      _ -> fail' "netOfThm"
+      _ -> fail "netOfThm"
 netOfThm _ _ _ = throwM $ HOLExhaustiveWarning "netOfThm"
 
 -- This is kept polymorphic for re-use in later libraries
 netOfConv :: Ord a => HOLTerm -> a -> Net (Int, a) -> Net (Int, a)
 netOfConv tm conv = netEnter [] (tm, (2, conv))
 
-netOfCong :: (MonadCatch m, MonadThrow m) 
-          => HOLThm -> Net GConversion -> m (Net GConversion)
+netOfCong :: HOLThm -> Net GConversion -> HOL cls thry (Net GConversion)
 netOfCong th sofar = 
     do (conc, n) <- repeatM (\ (tm, m) -> 
                       do (_, x) <- destImp tm
                          return (x, m+1)) (concl th, 0)
        if n == 0 
-          then fail' "netOfCong"
+          then fail "netOfCong"
           else do pat <- lHand conc
                   return $! netEnter [] (pat, (4, CONG n th)) sofar
 
@@ -424,8 +422,8 @@ ssOfConv :: HOLTerm -> CConv -> Simpset cls thry -> Simpset cls thry
 ssOfConv keytm conv (Simpset net prover provers rewmaker) =
     Simpset (netOfConv keytm conv net) prover provers rewmaker
 
-ssOfCongs :: (BoolCtxt thry, MonadCatch m, MonadThrow m) 
-          => [HOLThm] -> Simpset cls thry -> m (Simpset cls thry)
+ssOfCongs :: BoolCtxt thry => [HOLThm] -> Simpset cls thry 
+          -> HOL cls thry (Simpset cls thry)
 ssOfCongs thms (Simpset net prover provers rewmaker) =
    do net' <- foldrM netOfCong net thms
       return $! Simpset net' prover provers rewmaker

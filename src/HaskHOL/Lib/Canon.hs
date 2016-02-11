@@ -199,17 +199,17 @@ convHALF_MK_ABS = conv
               prove [txt| (s = \x. t x) <=> (!x. s x = t x) |] $
                 tacREWRITE [thmFUN_EQ]
 
-findLambda :: (MonadCatch m, MonadThrow m) => HOLTerm -> m HOLTerm
+findLambda :: HOLTerm -> HOL cls thry HOLTerm
 findLambda tm@Abs{} = return tm
-findLambda Var{} = fail' "findLambda: var case"
-findLambda Const{} = fail' "findLambda: const case"
+findLambda Var{} = fail "findLambda: var case"
+findLambda Const{} = fail "findLambda: const case"
 findLambda tm = 
     if isForall tm || isExists tm || isUExists tm
     then findLambda =<< body =<< rand tm
     else case tm of
            (Comb l r) -> 
                findLambda l <|> findLambda r
-           _ -> fail' "findLambda: quantified case"
+           _ -> fail "findLambda: quantified case"
 
 elimLambda :: Conversion cls thry -> Conversion cls thry 
 elimLambda conv = Conv $ \ tm ->
@@ -231,19 +231,17 @@ applyPTH = ruleMATCH_MP applyPTH_pth
 
 convLAMB1 :: TriviaCtxt thry => Conversion cls thry
 convLAMB1 = Conv $ \ tm -> note "convLAMB1" $
-    case runCatch $ findLambda tm of
-      (Right atm@(Abs v _)) -> 
-          let vs = frees atm
-              vs' = vs ++ [v] in
-            do aatm <- listMkAbs vs atm
-               f <- genVar $ typeOf aatm
-               eq <- mkEq f aatm
-               th1 <- ruleSYM . ruleRIGHT_BETAS vs $ primASSUME eq
-               th2 <- runConv (elimLambda $ convGEN_REWRITE id [th1]) tm
-               th3 <- applyPTH =<< ruleGEN f (ruleDISCH_ALL th2)
-               ruleCONV (convRAND . convBINDER . 
-                         convLAND $ convHALF_MK_ABS vs') th3
-      _ -> fail "not an abstraction."
+    do atm <- findLambda tm
+       (v, _) <- destAbs atm
+       let vs = frees atm
+           vs' = vs ++ [v]
+       aatm <- listMkAbs vs atm
+       f <- genVar $ typeOf aatm
+       eq <- mkEq f aatm
+       th1 <- ruleSYM . ruleRIGHT_BETAS vs $ primASSUME eq
+       th2 <- runConv (elimLambda $ convGEN_REWRITE id [th1]) tm
+       th3 <- applyPTH =<< ruleGEN f (ruleDISCH_ALL th2)
+       ruleCONV (convRAND . convBINDER .convLAND $ convHALF_MK_ABS vs') th3
 
 convLAMBDA_ELIM :: TriviaCtxt thry => Conversion cls thry
 convLAMBDA_ELIM = Conv $ \ tm -> 
@@ -327,47 +325,45 @@ tacSELECT_ELIM =
 -- eliminate conditionals 
 condsElimConv :: TriviaCtxt thry => Bool -> Conversion cls thry    
 condsElimConv dfl = Conv $ \ tm ->
-    (case runCatch $ findConditional [] tm of
-       Right t -> 
-         do p <- lHand =<< rator t
-            prosimps <- basicNet
-            let conv = convDEPTH (convREWRITES prosimps)
-            thNew <- case p of
-                       F -> runConv conv tm
-                       T -> runConv conv tm
-                       _ ->
-                          do asm0 <- mkEq p =<< tmFalse
-                             ath0 <- primASSUME asm0
-                             asm1 <- mkEq p =<< tmTrue
-                             ath1 <- primASSUME asm1
-                             simp0 <- netOfThm False ath0 prosimps
-                             simp1 <- netOfThm False ath1 prosimps
-                             th0 <- ruleDISCH asm0 $ 
-                                     runConv (convDEPTH $ convREWRITES simp0) tm
-                             th1 <- ruleDISCH asm1 $
-                                     runConv (convDEPTH $ convREWRITES simp1) tm
-                             th2 <- ruleCONJ th0 th1
-                             let convTh = if dfl then convCONDS_ELIM_thCond
-                                          else convCONDS_ELIM_thCond'
-                             th3 <- ruleMATCH_MP convTh th2
-                             let cnv = _TRY (convREWRITES prosimps)
-                                 proptsimpConv = convBINOP cnv `_THEN` cnv
-                             rth <- runConv proptsimpConv =<< rand (concl th3)
-                             primTRANS th3 rth
-            ruleCONV (convRAND $ condsElimConv dfl) thNew
-       _
-         | isNeg tm ->
-             runConv (convRAND . condsElimConv $ not dfl) tm
-         | isConj tm || isDisj tm ->
-             runConv (convBINOP $ condsElimConv dfl) tm
-         | isImp tm || isIff tm ->
-             runConv (convCOMB2 (convRAND . condsElimConv $ not dfl)
-                       (condsElimConv dfl)) tm
-         | isForall tm ->
-             runConv (convBINDER $ condsElimConv False) tm
-         | isExists tm || isUExists tm ->
-             runConv (convBINDER $ condsElimConv True) tm
-         | otherwise -> primREFL tm)
+    (do t <- findConditional [] tm
+        p <- lHand =<< rator t
+        prosimps <- basicNet
+        let conv = convDEPTH (convREWRITES prosimps)
+        thNew <- case p of
+                   F -> runConv conv tm
+                   T -> runConv conv tm
+                   _ ->
+                       do asm0 <- mkEq p =<< tmFalse
+                          ath0 <- primASSUME asm0
+                          asm1 <- mkEq p =<< tmTrue
+                          ath1 <- primASSUME asm1
+                          simp0 <- netOfThm False ath0 prosimps
+                          simp1 <- netOfThm False ath1 prosimps
+                          th0 <- ruleDISCH asm0 $ 
+                                   runConv (convDEPTH $ convREWRITES simp0) tm
+                          th1 <- ruleDISCH asm1 $
+                                   runConv (convDEPTH $ convREWRITES simp1) tm
+                          th2 <- ruleCONJ th0 th1
+                          let convTh = if dfl then convCONDS_ELIM_thCond
+                                       else convCONDS_ELIM_thCond'
+                          th3 <- ruleMATCH_MP convTh th2
+                          let cnv = _TRY (convREWRITES prosimps)
+                              proptsimpConv = convBINOP cnv `_THEN` cnv
+                          rth <- runConv proptsimpConv =<< rand (concl th3)
+                          primTRANS th3 rth
+        ruleCONV (convRAND $ condsElimConv dfl) thNew) <|>
+       (if isNeg tm 
+             then runConv (convRAND . condsElimConv $ not dfl) tm
+        else if isConj tm || isDisj tm 
+             then runConv (convBINOP $ condsElimConv dfl) tm
+        else if isImp tm || isIff tm
+             then runConv (convCOMB2 (convRAND . condsElimConv $ not dfl)
+                    (condsElimConv dfl)) tm
+        else if isForall tm
+             then runConv (convBINDER $ condsElimConv False) tm
+        else if isExists tm || isUExists tm
+             then runConv (convBINDER $ condsElimConv True) tm
+        else primREFL tm)
     <?> "condsElimConv"
   where convCONDS_ELIM_thCond :: TriviaCtxt thry => HOL cls thry HOLThm
         convCONDS_ELIM_thCond = cacheProof "convCONDS_ELIM_thCond" ctxtTrivia .
@@ -384,16 +380,16 @@ condsElimConv dfl = Conv $ \ tm ->
                           x = ((~b \/ x1) /\ (b \/ x0)) |] $
                 tacBOOL_CASES [txt| b:bool |] `_THEN` tacASM_REWRITE_NIL
 
-        findConditional :: [HOLTerm] -> HOLTerm -> Catch HOLTerm   
+        findConditional :: [HOLTerm] -> HOLTerm -> HOL cls thry HOLTerm   
         findConditional fvs tm@(Comb s t)
             | isCond tm =
-                do freesL <- liftM frees $ lHand s
+                do freesL <- frees `fmap` lHand s
                    if null (freesL `intersect` fvs)
                       then return tm
                       else findConditional fvs s <|> findConditional fvs t
             | otherwise = findConditional fvs s <|> findConditional fvs t
         findConditional fvs (Abs x t) = findConditional (x:fvs) t
-        findConditional _ _ = fail' "findConditional"
+        findConditional _ _ = fail "findConditional"
 
 
 convCONDS_ELIM :: TriviaCtxt thry => Conversion cls thry

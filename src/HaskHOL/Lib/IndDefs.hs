@@ -368,11 +368,12 @@ tacMONO g =
                   do th <- ruleSPEC a thmIMP_REFL
                      tacACCEPT th gl
               | otherwise = 
-                  let cn = case runCatch $ repeatM rator c of
-                             Right (Const n _) -> n
-                             _ -> "" in
-                    tryFind (\ (k, t) -> if k == cn then t gl 
-                                         else fail "tacApplyMono") tacs
+                  do c' <- repeatM rator c <|> mkVar "" tyA
+                     let cn = case c' of
+                                Const n _ -> n
+                                _ -> ""
+                     tryFind (\ (k, t) -> if k == cn then t gl 
+                                          else fail "tacApplyMono") tacs
             where thmIMP_REFL :: IndDefsCtxt thry => HOL cls thry HOLThm
                   thmIMP_REFL = cacheProof "thmIMP_REFL" ctxtIndDefs $
                       ruleITAUT [txt| !p . p ==> p |]
@@ -437,23 +438,23 @@ proveInductiveProperties ptm =
                                clauses' <- mapM (subst crels) clauses
                                return (clauses', snd . stripComb $ head schems)
 
-        schemFun :: (MonadCatch m, MonadThrow m) => HOLTerm -> m HOLTerm
+        schemFun :: HOLTerm -> HOL cls thry HOLTerm
         schemFun cls = 
             let (avs, bod) = stripForall cls in
               do bod' <- liftM snd (destImp bod) <|> return bod
                  pareComb avs bod'
 
-        pareComb :: MonadThrow m => [HOLTerm] -> HOLTerm -> m HOLTerm
+        pareComb :: [HOLTerm] -> HOLTerm -> HOL cls thry HOLTerm
         pareComb qvs tm =
             if null (frees tm `intersect` qvs) &&
                all isVar (snd $ stripComb tm)
             then return tm
             else pareComb qvs =<< rator tm
 
-        hackFun :: (MonadCatch m, MonadThrow m) => HOLTerm -> m HOLTerm
+        hackFun :: HOLTerm -> HOL cls thry HOLTerm
         hackFun tm = 
             do (s, _) <- destVar =<< repeatM rator tm
-               return . mkVar s $! typeOf tm
+               mkVar s $! typeOf tm
 
 generalizeSchematicVariables :: BoolCtxt thry => Bool -> [HOLTerm] 
                                      -> HOLThm -> HOL cls thry HOLThm

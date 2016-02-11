@@ -84,6 +84,7 @@ module HaskHOL.Lib.Bool
     ) where
 
 import HaskHOL.Core
+import qualified HaskHOL.Core.Kernel as K (typeMatch)
 
 import HaskHOL.Lib.Equal
 
@@ -616,8 +617,7 @@ ruleISPEC ptm pthm = note "ruleISPEC" $
        case concl thm of
          (Forall (Var _ ty) _) ->
            do tm <- toHTm ptm
-              tyenv <- typeMatch ty (typeOf tm) ([], [], []) <?> 
-                         "can't instantiate theorem."
+              tyenv <- typeMatch ty (typeOf tm) <?> "can't instantiate theorem."
               (ruleSPEC tm (primINST_TYPE_FULL tyenv thm)) <?> 
                 "type variable(s) free in assumption list."
          _ -> fail "theorem not universally quantified."
@@ -648,7 +648,7 @@ ruleISPECL ptms pthm = note "ruleISPECL" $
        (ruleSPECL tms $ primINST_TYPE_FULL tyenv thm) <?>
          "type variable(s) free in assumption list."
   where tyFun :: HOLTerm -> HOLType -> SubstTrip -> HOL cls thry SubstTrip
-        tyFun (Var _ ty1) ty2 acc = typeMatch ty1 ty2 acc
+        tyFun (Var _ ty1) ty2 acc = K.typeMatch ty1 ty2 acc
         tyFun _ _ _ = fail "tyFun"
 
 {-|@

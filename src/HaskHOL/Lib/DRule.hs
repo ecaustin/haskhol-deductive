@@ -31,7 +31,7 @@ module HaskHOL.Lib.DRule
     ) where
 
 import HaskHOL.Core
-import qualified HaskHOL.Core.Kernel as K (mkComb)
+import qualified HaskHOL.Core.Kernel as K (mkComb, mkAbs, typeMatch)
 import qualified HaskHOL.Core.Basics as B (subst)
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Equal
@@ -185,7 +185,7 @@ instantiate (xs, tmenv, tyenv) x =
         hoBetas Var{} _ = fail' "hoBetas"
         hoBetas Const{} _ = fail' "hoBetas"
         hoBetas (Abs _ bod1) (Abs bv bod2) = 
-            mkAbs bv =<< hoBetas bod1 bod2 
+            K.mkAbs bv =<< hoBetas bod1 bod2 
         hoBetas pat tm =
             let (hop, args) = stripComb pat
                 n = length args in
@@ -282,39 +282,42 @@ ruleINSTANTIATE_ALL i@(_, tmenv, (tys, opTys, opOps)) pthm =
                     funpowM (length rhyps) ruleUNDISCH thm2
 
 -- term matching
-termMatch :: MonadCatch m => [HOLTerm] -> HOLTerm -> HOLTerm -> m Instantiation
+termMatch :: [HOLTerm] -> HOLTerm -> HOLTerm -> HOL cls thry Instantiation
 termMatch lconsts vtm ctm = 
     do pinsts_homs <- termPMatch lconsts [] vtm ctm ([], [])
        tyenv <- getTypeInsts (fst pinsts_homs) ([], [], [])
        insts <- termHOMatch lconsts tyenv pinsts_homs
        separateInsts insts
 
-termPMatch :: (MonadCatch m, MonadThrow m) 
-           => [HOLTerm] -> HOLTermEnv -> HOLTerm -> HOLTerm 
+termPMatch :: [HOLTerm] -> HOLTermEnv -> HOLTerm -> HOLTerm 
            -> (HOLTermEnv, [(HOLTermEnv, HOLTerm, HOLTerm)]) 
-           -> m (HOLTermEnv, [(HOLTermEnv, HOLTerm, HOLTerm)])
+           -> HOL cls thry (HOLTermEnv, [(HOLTermEnv, HOLTerm, HOLTerm)])
 termPMatch lconsts env vtm@Var{} ctm sofar@(insts, homs) =
     case lookup vtm env of
       Just ctm' -> 
           if ctm' == ctm then return sofar
-          else fail' "termPMatch"
+          else fail "termPMatch"
       Nothing -> 
           if vtm `elem` lconsts
           then if ctm == vtm then return sofar
-               else fail' "termPMatch"
+               else fail "termPMatch"
           else do insts' <- safeInsertA (vtm, ctm) insts
                   return (insts', homs)
 termPMatch _ _ (Const vname vty) (Const cname cty) sofar@(insts, homs) =
     if vname == cname
     then if vty == cty then return sofar
          else let name = mkDummy in
-                do insts' <- safeInsert (mkVar name vty, mkVar name cty) insts
+                do vtm' <- mkVar name vty
+                   ctm' <- mkVar name cty
+                   insts' <- safeInsert (vtm', ctm') insts
                    return (insts', homs)
-    else fail' "termPMatch"
+    else fail "termPMatch"
 termPMatch lconsts env (Abs vv@(Var _ vty) vbod) 
                        (Abs cv@(Var _ cty) cbod) (insts, homs) =
     let name = mkDummy in
-      do insts' <- safeInsert (mkVar name vty, mkVar name cty) insts
+      do vv' <- mkVar name vty
+         cv' <- mkVar name cty
+         insts' <- safeInsert (vv', cv') insts
          termPMatch lconsts ((vv, cv):env) vbod cbod (insts', homs)
 termPMatch lconsts env vtm ctm sofar@(insts, homs) =
     do vhop <- repeatM rator vtm
@@ -324,8 +327,9 @@ termPMatch lconsts env vtm ctm sofar@(insts, homs) =
                    cty = typeOf ctm in
                  do insts' <- if vty == cty then return insts 
                               else let name = mkDummy in
-                                     safeInsert (mkVar name vty, 
-                                                 mkVar name cty) insts
+                                     do vtm' <- mkVar name vty
+                                        ctm' <- mkVar name cty
+                                        safeInsert (vtm', ctm') insts
                     return (insts', (env, vtm, ctm):homs)
           else case (vtm, ctm) of
                  (Comb lv rv, Comb lc rc) ->
@@ -337,21 +341,23 @@ termPMatch lconsts env vtm ctm sofar@(insts, homs) =
                      if tyv == tyc then termPMatch lconsts env tv tc sofar
                      else do (i, h) <- termPMatch lconsts env tv tc sofar
                              let name = mkDummy
-                             i' <- safeInsert (mkVar name tyv, mkVar name tyc) i
+                             tv' <- mkVar name tyv
+                             tc' <- mkVar name tyc
+                             i' <- safeInsert (tv', tc') i
                              return (i', h)
-                 _ -> fail' "termPMatch"
+                 _ -> fail "termPMatch"
 
 getTypeInsts :: (MonadCatch m, MonadThrow m) 
              => HOLTermEnv -> SubstTrip -> m SubstTrip
 getTypeInsts insts i = 
     foldrM (\ (x, t) sofar -> case x of
                                 (Var _ ty) -> 
-                                    typeMatch ty (typeOf t) sofar
+                                    K.typeMatch ty (typeOf t) sofar
                                 _ -> fail' "getTypeInsts") i insts
 
-termHOMatch :: MonadCatch m => [HOLTerm] -> SubstTrip  
+termHOMatch :: [HOLTerm] -> SubstTrip  
             -> (HOLTermEnv, [(HOLTermEnv, HOLTerm, HOLTerm)]) 
-            -> m HOLTermEnv
+            -> HOL cls thry HOLTermEnv
 termHOMatch _ _ (insts, []) = return insts
 termHOMatch lconsts tyenv@(tys, opTys, opOps) 
             (insts, homs@((env, vtm, ctm):rest)) = 
@@ -370,7 +376,7 @@ termHOMatch lconsts tyenv@(tys, opTys, opOps)
                                               assoc a insts <|> 
                                               (if a `elem` lconsts 
                                                then return a 
-                                               else fail' "termHOMatch")
+                                               else fail "termHOMatch")
                                         return (inst_fn a, a')) afvs
                let pats0 = map inst_fn vargs
                    vhop' = inst_fn vhop
@@ -399,9 +405,9 @@ termHOMatch lconsts tyenv@(tys, opTys, opOps)
                                            (insts, (env, lv, lc):tail homs)
                          tyenv' <- getTypeInsts (fst pinsts_homs') ([], [], [])
                          termHOMatch lconsts tyenv' pinsts_homs'
-                  _ -> fail' "termHOMatch"))
+                  _ -> fail "termHOMatch"))
 
-separateInsts :: (MonadCatch m, MonadThrow m) => HOLTermEnv -> m Instantiation
+separateInsts :: HOLTermEnv -> HOL cls thry Instantiation
 separateInsts insts = 
     let (realinsts, patterns) = partition (isVar . fst) insts in
       do betacounts <- 
@@ -411,14 +417,14 @@ separateInsts insts =
                             (safeInsert (hop, length args) sof
                              <|> return sof)) [] patterns
          tyenv <- getTypeInsts realinsts ([], [], [])
-         let realinsts' = mapFilter
-                          (\ (x, t) -> 
-                             case x of
-                               (Var xn xty) -> 
-                                 let x' = mkVar xn $ typeSubstFull tyenv xty in
-                                   if t == x' then fail' "separateInsts"
-                                   else return (x', t)
-                               _ -> fail' "separateInsts") realinsts
+         realinsts' <- mapFilterM (\ (x, t) -> 
+                         case x of
+                           (Var xn xty) -> 
+                               do x' <- mkVar xn $ typeSubstFull tyenv xty
+                                  if t == x' 
+                                     then fail "separateInsts"
+                                     else return (x', t)
+                           _ -> fail "separateInsts") realinsts
          return (betacounts, realinsts', tyenv)
 
 insertByTest :: (Eq a, MonadThrow m) 
@@ -436,8 +442,7 @@ safeInsertA :: MonadThrow m => (HOLTerm, HOLTerm) -> [(HOLTerm, HOLTerm)]
 safeInsertA = insertByTest aConv
 
 mkDummy :: Text
-mkDummy = 
-    let (Var name _) = unsafeGenVar tyA in name
+mkDummy = let (Var name _) = unsafeGenVar tyA in name
 
 
 
@@ -502,14 +507,12 @@ tryalpha v tm =
 deepAlpha :: [(Text, Text)] -> HOLTerm -> HOL cls thry HOLTerm
 deepAlpha [] tm = return tm
 deepAlpha env tm@(Abs var@(Var vn vty) bod) =
-    let catchCase1 = mkAbs var =<< deepAlpha env bod in
-      case remove (\ (x, _) -> x == vn) env of
-        Just ((_, vn'), newenv) -> 
-            case tryalpha (mkVar vn' vty) tm of
-                Abs var' ib -> (do ib' <- deepAlpha newenv ib
-                                   mkAbs var' ib') <|> catchCase1
-                _ -> catchCase1
-        Nothing -> catchCase1
+    (do ((_, vn'), newenv) <- remove (\ (x, _) -> x == vn) env
+        var' <- mkVar vn' vty
+        let (Abs var'' ib) = tryalpha var' tm
+        ib' <- deepAlpha newenv ib
+        mkAbs var'' ib')
+    <|> mkAbs var (deepAlpha env bod)
 deepAlpha env (Comb l r) =
     mkComb (deepAlpha env l) (deepAlpha env r)
 deepAlpha _ tm = return tm

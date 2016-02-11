@@ -70,8 +70,8 @@ defineQuotientType tyname absname repname tm =
          case typeOf eqv of
            (TyApp _ (ty:_)) ->
                do pty <- mkFunTy ty tyBool
-                  let s = mkVar "s" pty
-                      x = mkVar "x" ty
+                  s <- mkVar "s" pty
+                  x <- mkVar "x" ty
                   eqvx <- mkComb eqv x
                   exx <- mkExists x =<< mkEq s eqvx
                   predtm <- mkAbs s exx
@@ -125,11 +125,12 @@ liftFunction ptybij2 refl_th trans_th fname pwth =
                 rvs <- mapM lHand rels
                 qvs <- mapM lhs eqs
                 let ety = typeOf mrt
-                    evs = variants wfvs $ map (\ (Var v _) -> mkVar v ety) rvs
+                evs <- variants wfvs `fmap` 
+                         mapM (\ (Var v _) -> mkVar v ety) rvs
                 mems <- map2M (\ rv ev -> mkComb (mkComb dest ev) rv)
                           rvs evs
                 (lcon, rcon) <- destComb con
-                let u = variant (evs ++ wfvs) $ mkVar "u" $ typeOf rcon
+                u <- variant (evs ++ wfvs) `fmap` mkVar "u" (typeOf rcon)
                 ucon <- mkComb lcon u
                 dbod <- listMkConj (ucon:mems)
                 detm <- listMkExists rvs dbod

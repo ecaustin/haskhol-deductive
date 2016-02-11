@@ -79,8 +79,8 @@ import HaskHOL.Core
  
   > rand <=< rator
 -}
-lHand :: MonadThrow m => HOLTerm -> m HOLTerm
-lHand = rand <=< rator
+lHand :: HOLTermRep tm cls thry => tm -> HOL cls thry HOLTerm
+lHand = rand . rator
 
 -- | Returns the left hand side of an equation.
 lhs :: MonadThrow m => HOLTerm -> m HOLTerm
@@ -102,7 +102,7 @@ rhs tm = snd `fmap` destEq tm
 mkPrimedVar :: [HOLTerm] -> HOLTerm -> HOL cls thry HOLTerm
 mkPrimedVar avoid (Var s ty) =
     do s' <- primedRec (mapFilter varName avoid) s
-       return $! mkVar s' ty
+       mkVar s' ty
   where varName :: HOLTerm -> Catch Text
         varName (Var x _) = return x
         varName _ = fail' "varName"
@@ -171,7 +171,7 @@ ruleSYM pthm = note "ruleSYM" $
               th1 <- ruleAP_TERM eqTm thm
               th2 <- primMK_COMB th1 lth
               primEQ_MP th2 lth
-         _ -> fail' "conclusion not an equation."
+         _ -> fail "conclusion not an equation."
 
 {-|@
   t1   t1'  
@@ -275,7 +275,7 @@ convCHANGED conv = Conv $ \ tm -> note "convCHANGED" $
     do th@(Thm _ tm') <- runConv conv tm
        (l, r) <- destEq tm'
        if l `aConv` r 
-          then fail' "no change"
+          then fail "no change"
           else return th
 
 convTRY :: Conversion cls thry -> Conversion cls thry
@@ -300,7 +300,7 @@ convRATOR conv = Conv $ \ tm -> note "convRATOR" $
     case tm of
        Comb l r -> 
          ruleAP_THM (runConv conv l) r <?> "conversion failed."
-       _ -> fail' "not a combination"
+       _ -> fail "not a combination"
 
 {-|
   The 'convRAND' conversional applies a given conversion to the operand of a
@@ -316,7 +316,7 @@ convRAND conv = Conv $ \ tm -> note "convRAND" $
     case tm of
        Comb l r -> 
          ruleAP_TERM l (runConv conv r) <?> "conversion failed."   
-       _ -> fail' "not a combination"
+       _ -> fail "not a combination"
 
 {-|
   The 'convLAND' conversional applies a given conversion to the left hand side 
@@ -346,7 +346,7 @@ convCOMB2 lconv rconv = Conv $ \ tm -> note "convCOMB2" $
          do lth <- runConv lconv l <?> "left conversion failed."
             rth <- runConv rconv r <?> "right conversion failed."
             primMK_COMB lth rth
-      _ -> fail' "not a combination"
+      _ -> fail "not a combination"
 
 {-|
   The 'convCOMB' conversional applies a conversion to both the operator and 
@@ -399,7 +399,7 @@ convTYAPP conv = Conv $ \ tm -> note "convTYAPP" $
       TyComb t ty -> 
           do th <- runConv conv t <?> "conversion failed."
              primTYAPP ty th
-      _ -> fail' "not a type combination."
+      _ -> fail "not a type combination."
 
 {-|
   The 'convTYABS' conversional applies a given conversions to the body of a
@@ -482,7 +482,7 @@ convBINOP conv = Conv $ \ tm -> note "convBINOP" $
           do lth <- runConv conv l <?> "conversion failed on left sub-term."
              rth <- runConv conv r <?> "conversion failed on right sub-term."
              primMK_COMB (ruleAP_TERM op lth) rth
-      _-> fail' "not a binary operator combination."
+      _-> fail "not a binary operator combination."
 
 -- Equality Conversions
 
@@ -533,7 +533,7 @@ convGEN_ALPHA v = Conv $ \ tm -> note "convGEN_ALPHA" $
       (Comb b@Const{} ab@Abs{}) ->
           do abth <- runConv (convALPHA v) ab
              ruleAP_TERM b abth
-      _ -> fail' "not a binder term."
+      _ -> fail "not a binder term."
 
 {-|
   The 'convGEN_TYALPHA' conversion converts the bound type variable of a term 
@@ -552,7 +552,7 @@ convGEN_TYALPHA v = Conv $ \ tm -> note "convGEN_TYALPHA" $
       (Comb b@Const{} ab@TyAbs{}) ->
           do abth <- runConv (convTYALPHA v) ab
              ruleAP_TERM b abth
-      _ -> fail' "not a type binder term."
+      _ -> fail "not a type binder term."
 
 {-|
   The 'convSYM' conversion performs a symmetry conversion on an equational 
@@ -598,7 +598,7 @@ convTYBETA = Conv $ \ tm -> note "convTYBETA" $
           | tv == ty -> primTYBETA tm
           | otherwise ->
                 primINST_TYPE [(tv, ty)] $ primTYBETA =<< mkTyComb t tv
-      _ -> fail' "not a type beta-redex."
+      _ -> fail "not a type beta-redex."
 
 
 -- depth conversions
@@ -689,7 +689,7 @@ combQConv conv = Conv $ \ tm ->
               primMK_COMB th (runConv conv r)
                 <|> ruleAP_THM th r)
           <|> ruleAP_TERM l (runConv conv r)
-      _ -> fail' "combQConv"
+      _ -> fail "combQConv"
 
 repeatqc :: Conversion cls thry -> Conversion cls thry
 repeatqc conv = conv `thencqc` repeatqc conv
@@ -804,10 +804,10 @@ convSUBS pths = Conv $ \ tm -> note "convSUBS" $
        gvs <- mapM (genVar . typeOf) lfts
        pat <- subst (zip lfts gvs) tm
        abTh <- primREFL =<< listMkAbs gvs pat
-       th@(Thm _ c) <- foldlM foldFun abTh ths
-       case runCatch $ rand c of
-         Right tm'
-             | tm' == tm -> primREFL tm
+       th <- foldlM foldFun abTh ths
+       case concl th of
+         (Comb _ r)
+             | r == tm -> primREFL tm
              | otherwise -> return th
          _ -> return th
   where conv :: Conversion cls thry

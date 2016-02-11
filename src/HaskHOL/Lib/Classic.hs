@@ -254,14 +254,13 @@ isSelect = isBinder "@"
 destSelect :: HOLTerm -> Maybe (HOLTerm, HOLTerm)
 destSelect = destBinder "@"
 
-mkSelect :: HOLTerm -> HOLTerm -> HOL cls thry HOLTerm
+mkSelect :: (HOLTermRep tm1 cls thry, HOLTermRep tm2 cls thry) 
+         => tm1 -> tm2 -> HOL cls thry HOLTerm
 mkSelect = mkBinder "@"
 
 isCond :: HOLTerm -> Bool
-isCond tm = 
-    case runCatch $ rator =<< rator =<< rator tm of
-      Right (Const "COND" _) -> True
-      _ -> False
+isCond (Comb _ (Comb _ (Comb (Const "COND" _) _))) = True
+isCond _ = False
 
 mkCond :: HOLTerm -> HOLTerm -> HOLTerm -> HOL cls thry HOLTerm
 mkCond b x y =
