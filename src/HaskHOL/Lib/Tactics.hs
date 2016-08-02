@@ -1,4 +1,5 @@
-{-# LANGUAGE FlexibleInstances, TypeSynonymInstances, UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances, ScopedTypeVariables, TypeSynonymInstances, 
+             UndecidableInstances #-}
 {-|
   Module:    HaskHOL.Lib.Tactics
   Copyright: (c) Evan Austin 2015
@@ -91,13 +92,13 @@ module HaskHOL.Lib.Tactics
 
 import Prelude hiding ((<$>))
 import HaskHOL.Core
+import qualified HaskHOL.Core.Kernel as K (typeOf)
 
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Equal
 import HaskHOL.Lib.DRule
 
-import Text.PrettyPrint.Free
-import System.Console.Terminfo.PrettyPrint
+import Text.PrettyPrint.ANSI.Leijen hiding (bool)
 
 -- Types
 
@@ -110,22 +111,22 @@ data Goal = Goal [(Text, HOLThm)] HOLTerm deriving (Eq, Typeable)
 instance ShowHOL Goal where
     showHOL = ppGoal
 
-ppGoal :: Goal -> PrintM s TermDoc
+ppGoal :: Goal -> PrintM s Doc
 ppGoal (Goal asl w) = 
     do asl' <- if null asl then return empty
                else setPrec 0 >> ppASL (reverse asl)
        w' <- setPrec 0 >> ppTerm w
-       return $! asl' `above` text "-----" `above` w'
+       return $! asl' <$> text "-----" <$> w'
 
-ppASL :: [(Text, HOLThm)] -> PrintM s TermDoc
+ppASL :: [(Text, HOLThm)] -> PrintM s Doc
 ppASL [] = return empty
 ppASL ((s, th):rest) = 
     let s' = if textNull s then empty
-             else lparen <> pretty s <> rparen in
+             else lparen <> pretty (show s) <> rparen in
       do n <- getPrec
          c <- setPrec 0 >> ppTerm (concl th)
          rest' <- setPrec (n + 1) >> ppASL rest
-         return $! pretty n <+> c <> s' `above` rest'
+         return $! pretty n <+> c <> s' <$> rest'
 
 -- metavariables, instantiation, goal list, and justification
 data GoalState cls thry = 
@@ -141,14 +142,14 @@ instance ShowHOL (GoalState cls thry) where
             p' = if p < 1 then 1 else p + 1 in
           setPrec p' >> ppGoalState gs
          
-ppGoalState :: GoalState cls thry -> PrintM s TermDoc
+ppGoalState :: GoalState cls thry -> PrintM s Doc
 ppGoalState (GS _ [] _) = return $! text "No subgoals"
 ppGoalState (GS _ gls _) = 
     let n = length gls in
       do x <- getPrec
          gls' <- mapM ppGoal $ take x gls
          return $! pretty x <+> text "subgoal(s)" <+> 
-                   parens (pretty n <+> text "total") `above` (vcat gls')
+                   parens (pretty n <+> text "total") <$> (vcat gls')
 
 type Refinement cls thry = 
     GoalState cls thry -> HOL cls thry (GoalState cls thry)
@@ -170,22 +171,22 @@ nullMeta = ([], nullInst)
 instGoal :: BoolCtxt thry => Instantiation -> Goal -> HOL cls thry Goal
 instGoal p (Goal thms w) = 
     do thms' <- mapM (return `ffCombM` ruleINSTANTIATE_ALL p) thms
-       return . Goal thms' $ instantiate p w
+       Goal thms' `fmap` instantiate p w
 
 -- compose instantiations
-composeInsts :: Instantiation -> Instantiation -> Instantiation
+composeInsts :: Instantiation -> Instantiation -> HOL cls thry Instantiation
 composeInsts (pats1, tmenv1, (tys1, tyops, opops)) 
               i2@(pats2, tmenv2, tyenv2@(tys2, tyops2, opops2)) =
-    let tmenv = map (instFull tyenv2 `ffComb` instantiate i2) tmenv1
-        tys = map (typeSubstFull tyenv2 `ffComb` id) tys1
-        tmenv' = filter (\ (x, _) -> isNothing $ lookup x tmenv) tmenv2
-        tys' = filter (\ (a, _) -> isNothing $ lookup a tys) tys2
-        tyops' = filter (\ (a, _) -> isNothing $ lookup a tyops) tyops2
-        opops' = filter (\ (a, _) -> isNothing $ lookup a opops) opops2 in
-      (pats1++pats2, tmenv++tmenv', (tys++tys', tyops++tyops', opops++opops'))
-  where isNothing :: Maybe a -> Bool
-        isNothing Nothing = True
-        isNothing _ = False
+    do tmenv <- mapM ((return . instFull tyenv2) `ffCombM` 
+                      instantiate i2) tmenv1
+       let tys = map (typeSubstFull tyenv2 `ffComb` id) tys1
+       tmenv' <- filterM (\ (x, _) -> not `fmap` can (assoc x) tmenv) tmenv2
+       tys' <- filterM (\ (a, _) -> not `fmap` can (assoc a) tys) tys2
+       tyops' <- filterM (\ (a, _) -> not `fmap` can (assoc a) tyops) tyops2
+       opops' <- filterM (\ (a, _) -> not `fmap` can (assoc a) opops) opops2
+       return (pats1 ++ pats2, 
+               tmenv ++ tmenv', 
+               (tys ++ tys', tyops ++ tyops', opops ++ opops'))
 
 -- falsity
 mkFThm :: BoolCtxt thry => [HOLTerm] -> HOLTerm -> HOL cls thry HOLThm
@@ -228,16 +229,14 @@ by tac (GS (mvs, i) (g:ogls) just) =
     do (GS (newmvs, newinst) subgls subjust) <- tac g
        let n = length subgls
            mvs' = newmvs `union` mvs
-           i' = composeInsts i newinst
+       i' <- composeInsts i newinst
        ogls' <- mapM (instGoal newinst) ogls
        let gls' = subgls ++ ogls'
-           just' i2 ths = let i2' = composeInsts i' i2 in
-                            case trySplitAt n ths of
-                              Just (cths, oths) ->
-                                  do cths' <- subjust i2 cths
-                                     let sths = cths':oths
-                                     just i2' sths
-                              _ -> fail "byJust"
+           just' i2 ths = do i2' <- composeInsts i' i2
+                             (cths, oths) <- trySplitAt n ths
+                             cths' <- subjust i2 cths
+                             let sths = cths':oths
+                             just i2' sths
        return (GS (mvs', i') gls' just')
 
 -- tactic language
@@ -266,16 +265,17 @@ seqapply (tac:tacs) (goal:goals) =
     do (GS (mvs1, insts1) gls1 just1) <- tac goal
        goals' <- mapM (instGoal insts1) goals
        ((mvs2, insts2), gls2, just2) <- seqapply tacs goals'
-       let insts' = composeInsts insts1 insts2
-           justs' = composeJusts (length gls1) just1 just2
+       insts' <- composeInsts insts1 insts2
+       let justs' = composeJusts (length gls1) just1 just2
        return ((mvs1 `union` mvs2, insts'), gls1++gls2, justs')
 seqapply _ _ = fail "seqapply: length mismatch"
 
 justsequence :: Justification cls thry -> JustificationList cls thry 
              -> Instantiation -> Justification cls thry
 justsequence just1 just2 insts2 i ths =
-    let insts' = composeInsts insts2 i in
-      just1 insts' =<< just2 i ths
+    do insts' <- composeInsts insts2 i
+       th <- just2 i ths
+       just1 insts' th
 
 tacsequence :: BoolCtxt thry => GoalState cls thry -> [Tactic cls thry]
             -> HOL cls thry (GoalState cls thry)
@@ -286,7 +286,7 @@ tacsequence (GS (mvs1, insts1) gls1 just1) tacl =
                   then (\ i thl -> do th1 <- jst nullInst []
                                       propagateThm th1 i thl)
                   else jst
-       let insts' = composeInsts insts1 insts2
+       insts' <- composeInsts insts1 insts2
        return $! GS (mvs1 `union` mvs2, insts') gls2 just
 
 -- tactic combinators
@@ -321,7 +321,7 @@ tacFAIL :: String -> Tactic cls thry
 tacFAIL s _ = fail s 
 
 tacALL :: Tactic cls thry
-tacALL g = return (GS nullMeta [g] justification) 
+tacALL g = return $! GS nullMeta [g] justification
     where justification :: Justification cls thry
           justification _ [th] = return th
           justification _ _    = fail "tacALL: improper justification"
@@ -383,15 +383,16 @@ tclTHEN ttcl1 ttcl2 ttac = ttcl1 (ttcl2 ttac)
 
 
 -- manipulation of assumption list
-tacLABEL :: (BoolCtxt thry, HOLThmRep thm cls thry) 
+tacLABEL :: forall thm cls thry.
+            (BoolCtxt thry, HOLThmRep thm cls thry) 
          => Text -> ThmTactic thm cls thry
 tacLABEL s pthm (Goal asl w) =
     do thm <- toHThm pthm
-       return . GS nullMeta [Goal ((s, thm):asl) w] $ justification thm
-    where justification :: BoolCtxt thry => HOLThm -> Justification cls thry
-          justification thm i [th] = do thm' <- ruleINSTANTIATE_ALL i thm
-                                        rulePROVE_HYP thm' th
-          justification _ _ _      = fail "tacLABEL: improper justification"
+       return $! GS nullMeta [Goal ((s, thm):asl) w] justification
+    where justification :: BoolCtxt thry => Justification cls thry
+          justification i [th] = 
+              rulePROVE_HYP (ruleINSTANTIATE_ALL i pthm) th
+          justification _ _    = fail "tacLABEL: improper justification"
 
 tacASSUME :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacASSUME = tacLABEL ""
@@ -434,26 +435,24 @@ tacACCEPT pthm (Goal _ w) =
           else fail "tacACCEPT"
 
 -- create a tactic from a conversion
-tacCONV :: BoolCtxt thry => Conversion cls thry -> Tactic cls thry
-tacCONV conv g@(Goal asl w) =
-    do ttm <- serve [bool| T |]
-       th@(Thm _ tm) <- runConv conv w
+tacCONV :: forall cls thry. 
+           BoolCtxt thry => Conversion cls thry -> Tactic cls thry
+tacCONV conv g@(Goal asl w) = note "tacCONV" $
+    do th@(Thm _ tm) <- runConv conv w
        if aConv tm w
           then tacACCEPT th g
-          else case destEq tm of
-                 Just (l, r)
-                     | aConv l w -> 
-                         if r == ttm then tacACCEPT (ruleEQT_ELIM th) g
-                         else do th' <- ruleSYM th
-                                 return . GS nullMeta [Goal asl r] $ 
-                                            justification th'
-                     | otherwise -> fail "tacCONV: bad equation"
-                 _ -> fail "tacCONV: not an equation"
-    where justification :: BoolCtxt thry => HOLThm -> Justification cls thry
-          justification th' i [thm] = 
-              do th'' <- ruleINSTANTIATE_ALL i th'
-                 primEQ_MP th'' thm
-          justification _ _ _       = fail "tacCONV: improper justification"
+          else do (l, r) <- destEq tm
+                  if aConv l w
+                     then case r of
+                            T -> 
+                                tacACCEPT (ruleEQT_ELIM th) g
+                            _ -> 
+                                return $! GS nullMeta [Goal asl r] justification
+                     else fail "bad equation"
+    where justification :: Justification cls thry
+          justification i [thm] = 
+              primEQ_MP (ruleINSTANTIATE_ALL i (ruleSYM $ runConv conv w)) thm
+          justification _ _  = fail "tacCONV: improper justification"
                                                                  
 -- equality tactics
 tacREFL :: BoolCtxt thry => Tactic cls thry
@@ -465,7 +464,7 @@ tacABS (Goal asl w@(Abs lv lb := Abs rv rb)) =
     let avoids = foldr (union . thmFrees . snd) (frees w) asl in
       do v <- mkPrimedVar avoids lv 
          l' <- varSubst [(lv, v)] lb
-         w' <- mkEq l' =<< varSubst [(rv, v)] rb
+         w' <- mkEq l' $ varSubst [(rv, v)] rb
          return . GS nullMeta [Goal asl w'] $ justification v
   where justification :: HOLTerm -> Justification cls thry
         justification v i [thm] =
@@ -508,15 +507,16 @@ tacSUBST_VAR :: (BoolCtxt thry, HOLThmRep thm cls thry)
              => ThmTactic thm cls thry
 tacSUBST_VAR pthm g =
     do th@(Thm asm eq) <- toHThm pthm
-       case destEq eq of
-         Nothing -> _FAIL "tacSUBST_VAR: conclusion not an equivalence" g
-         Just (l, r)
-           | l `aConv` r -> _ALL g
-           | not (frees eq `subset` catFrees asm) -> _FAIL "tacSUBST_VAR" g
-           | (isConst l || isVar l) && not (l `freeIn` r) -> tacSUBST_ALL th g
-           | (isConst r || isVar r) && not (r `freeIn` l) -> 
-               tacSUBST_ALL (ruleSYM th) g
-           | otherwise -> _FAIL "tacSUBST_VAR" g
+       (l, r) <- destEq eq
+       if l `aConv` r
+          then _ALL g
+          else if not (frees eq `subset` catFrees asm)
+               then _FAIL "tacSUBST_VAR" g
+          else if (isConst l || isVar l) && not (l `freeIn` r) 
+               then tacSUBST_ALL th g
+          else if (isConst r || isVar r) && not (r `freeIn` l)
+               then tacSUBST_ALL (ruleSYM th) g
+          else _FAIL "tacSUBST_VAR" g
 
 -- basic logical tactics
 tacDISCH :: BoolCtxt thry => Tactic cls thry
@@ -536,14 +536,15 @@ tacDISCH (Goal asl (Neg ant)) =
         justification2 _ _      = fail "tacDISCH: improper justification"
 tacDISCH _ = fail "tacDISCH"
 
-tacMP :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
+tacMP :: forall thm cls thry. 
+         (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacMP pthm (Goal asl w) =
-    (do thm@(Thm _ c) <- toHThm pthm
+    (do (Thm _ c) <- toHThm pthm
         tm <- mkImp c w
-        return . GS nullMeta [Goal asl tm] $ justification thm) <?> "tacMP"
-  where justification :: BoolCtxt thry => HOLThm -> Justification cls thry
-        justification thm i [th] = ruleMP th $ ruleINSTANTIATE_ALL i thm
-        justification _ _ _      = fail "tacMP: improper justification"
+        return $! GS nullMeta [Goal asl tm] justification) <?> "tacMP"
+  where justification :: BoolCtxt thry => Justification cls thry
+        justification i [th] = ruleMP th $ ruleINSTANTIATE_ALL i pthm
+        justification _ _      = fail "tacMP: improper justification"
 
 tacEQ :: BoolCtxt thry => Tactic cls thry
 tacEQ (Goal asl (l := r)) =
@@ -569,33 +570,31 @@ tacUNDISCH ptm (Goal asl w) =
         justification thm i [th] = ruleMP th $ ruleINSTANTIATE_ALL i thm
         justification _ _ _      = fail "tacUNDISCH: bad justification"
 
-tacSPEC :: (BoolCtxt thry, HOLTermRep tm1 cls thry,
-            HOLTermRep tm2 cls thry) 
+tacSPEC :: forall tm1 tm2 cls thry.
+           (BoolCtxt thry, HOLTermRep tm1 cls thry, HOLTermRep tm2 cls thry) 
         => (tm1, tm2) -> Tactic cls thry
 tacSPEC (pt, px) (Goal asl w) =
     (do x <- toHTm px
         t <- toHTm pt
-        tm' <- mkForall x =<< subst [(t, x)] w
-        return $! GS nullMeta [Goal asl tm'] $ justification t) <?> "tacSPEC"
-  where justification :: BoolCtxt thry => HOLTerm -> Justification cls thry
-        justification t i [th] = ruleSPEC (instantiate i t) th
-        justification _ _ _    = fail "tacSPEC: bad justification"
+        tm' <- mkForall x $ subst [(t, x)] w
+        return $! GS nullMeta [Goal asl tm'] justification) <?> "tacSPEC"
+  where justification :: BoolCtxt thry => Justification cls thry
+        justification i [th] = ruleSPEC (instantiate i pt) th
+        justification _ _    = fail "tacSPEC: bad justification"
 
-tacX_GEN :: (BoolCtxt thry, HOLTermRep tm cls thry) => tm -> Tactic cls thry
+tacX_GEN :: forall tm cls thry.
+            (BoolCtxt thry, HOLTermRep tm cls thry) => tm -> Tactic cls thry
 tacX_GEN px (Goal asl w@(Forall x bod)) =
     do x' <- toHTm px
        let avoids = foldr (union . thmFrees . snd) (frees w) asl
        if x' `elem` avoids 
           then fail "tacX_GEN: variable free in goal."
           else (do bod' <- varSubst [(x, x')] bod
-                   return . GS nullMeta [Goal asl bod'] $ justification x')
+                   return $! GS nullMeta [Goal asl bod'] justification)
                <?> "tacX_GEN"
-  where afn :: HOLThm -> HOL cls thry HOLThm
-        afn = ruleCONV (convGEN_ALPHA x)
-
-        justification :: BoolCtxt thry => HOLTerm -> Justification cls thry
-        justification x' _ [th] = afn =<< ruleGEN x' th
-        justification _ _ _     = fail "tacX_GEN: improper justification"
+  where justification :: BoolCtxt thry => Justification cls thry
+        justification _ [th] = ruleCONV (convGEN_ALPHA px) $ ruleGEN px th
+        justification _ _    = fail "tacX_GEN: improper justification"
 tacX_GEN _ _ = fail "tacX_GEN: goal not universally quantified."
 
 tacGEN :: BoolCtxt thry => Tactic cls thry
@@ -606,38 +605,38 @@ tacGEN g@(Goal asl w@(Forall x _)) =
       <?> "tacGEN"
 tacGEN _ = fail "tacGEN: goal not universally quantified."
 
-tacEXISTS :: (BoolCtxt thry, HOLTermRep tm cls thry) => tm -> Tactic cls thry
+tacEXISTS :: forall tm cls thry.
+             (BoolCtxt thry, HOLTermRep tm cls thry) => tm -> Tactic cls thry
 tacEXISTS ptm (Goal asl w@(Exists v bod)) =
     (do t <- toHTm ptm
         bod' <- varSubst [(v, t)] bod
-        return . GS nullMeta [Goal asl bod'] $ justification t) <?> "tacEXISTS"
-  where justification :: BoolCtxt thry => HOLTerm -> Justification cls thry
-        justification t i [th] = 
-            ruleEXISTS (instantiate i w) (instantiate i t) th
-        justification _ _ _    = fail "tacEXISTS: improper justification"
+        return $! GS nullMeta [Goal asl bod'] justification) <?> "tacEXISTS"
+  where justification :: BoolCtxt thry => Justification cls thry
+        justification i [th] = 
+            ruleEXISTS (instantiate i w) (instantiate i ptm) th
+        justification _ _    = fail "tacEXISTS: improper justification"
 tacEXISTS _ _ = fail "tacEXISTS: goal not existentially quantified."
 
-tacX_CHOOSE :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
+tacX_CHOOSE :: forall tm thm cls thry.
+               (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
             => tm -> ThmTactic thm cls thry
 tacX_CHOOSE ptm pthm (Goal asl w) = note "tacX_CHOOSE" $
     do x' <- toHTm ptm
        xth <- toHThm pthm
        case concl xth of
          Exists x bod ->
-             do xth' <- primASSUME =<< varSubst [(x, x')] bod
+             do xth' <- primASSUME $ varSubst [(x, x')] bod
                 let avoids = foldr (union . frees . concl . snd) 
                              (frees w `union` thmFrees xth) asl
                 if x' `elem` avoids 
                 then fail "provided variable is free in provided theorem."
-                else return . GS nullMeta [Goal (("", xth'):asl) w] $ 
-                                justification x' xth
+                else return $! GS nullMeta [Goal (("", xth'):asl) w] 
+                                 justification
          _ -> fail "not an existential theorem."
-  where justification :: BoolCtxt thry 
-                      => HOLTerm -> HOLThm -> Justification cls thry
-        justification x' xth i [th] = 
-            do xth2 <- ruleINSTANTIATE_ALL i xth
-               ruleCHOOSE x' xth2 th
-        justification _ _ _ _       = fail "tacX_CHOOSE: improper justification"
+  where justification :: Justification cls thry
+        justification i [th] = 
+            ruleCHOOSE ptm (ruleINSTANTIATE_ALL i pthm) th
+        justification _ _       = fail "tacX_CHOOSE: improper justification"
 
 tacCHOOSE :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacCHOOSE pth (Goal asl w) = 
@@ -674,19 +673,20 @@ tacDISJ2 (Goal asl (l :\/ r)) =
           justification _ _    = fail "tacDISJ2: improper justification"
 tacDISJ2 _ = fail "tacDISJ2: goal not a disjunction."
 
-tacDISJ_CASES :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm 
+tacDISJ_CASES :: forall thm cls thry.
+                 (BoolCtxt thry, HOLThmRep thm cls thry) => thm 
               -> Tactic cls thry
 tacDISJ_CASES pth (Goal asl w) =
     (do dth <- toHThm pth
-        (lth, rth) <- pairMapM primASSUME =<< destDisj (concl dth)
-        return . GS nullMeta [Goal (("", lth):asl) w, 
-                              Goal (("", rth):asl) w] $ justification dth)
+        tms <- destDisj $ concl dth
+        (lth, rth) <- pairMapM primASSUME tms
+        return $! GS nullMeta [Goal (("", lth):asl) w, 
+                               Goal (("", rth):asl) w] justification)
     <?> "tacDISJ_CASES"
-  where justification :: BoolCtxt thry => HOLThm -> Justification cls thry
-        justification dth i [th1, th2] = 
-            do dth' <- ruleINSTANTIATE_ALL i dth
-               ruleDISJ_CASES dth' th1 th2
-        justification _ _ _ = fail "tacDISJ_CASES: improper justification."
+  where justification :: Justification cls thry
+        justification i [th1, th2] = 
+            ruleDISJ_CASES (ruleINSTANTIATE_ALL i pth) th1 th2
+        justification _ _ = fail "tacDISJ_CASES: improper justification."
 
 tacCONTR :: (BoolCtxt thry, HOLThmRep thm cls thry) => ThmTactic thm cls thry
 tacCONTR cth (Goal _ w) =
@@ -712,7 +712,8 @@ tacMATCH_MP pth (Goal asl w) =
         th1 <- ruleSPECL avs $ primASSUME tm
         th2 <- ruleUNDISCH th1
         let evs = filter (\ v -> varFreeIn v ant && not (varFreeIn v con)) avs
-        th3 <- itlistM ruleSIMPLE_CHOOSE evs =<< ruleDISCH tm th2
+        th2_5 <- ruleDISCH tm th2
+        th3 <- itlistM ruleSIMPLE_CHOOSE evs th2_5
         tm3 <- tryHead $ hyp th3
         th4 <- ruleDISCH tm . ruleGEN_ALL . ruleDISCH tm3 $ ruleUNDISCH th3
         sth <- ruleMP th4 th
@@ -721,8 +722,7 @@ tacMATCH_MP pth (Goal asl w) =
         return $! GS nullMeta [Goal asl lant] (justification xth)) 
     <?> "tacMATCH_MP: no match"
   where justification :: BoolCtxt thry => HOLThm -> Justification cls thry
-        justification xth i [thm] = do thm2 <- ruleINSTANTIATE_ALL i xth
-                                       ruleMP thm2 thm
+        justification xth i [thm] = ruleMP (ruleINSTANTIATE_ALL i xth) thm
         justification _ _ _       = fail "tacMATCH_MP: improper justification"
 
 -- theorem continuations
@@ -731,7 +731,8 @@ _CONJUNCTS_THEN2 :: (BoolCtxt thry, HOLThmRep thm cls thry)
                  -> ThmTactic thm cls thry
 _CONJUNCTS_THEN2 ttac1 ttac2 pth gl = 
     do cth <- toHThm pth
-       (c1th, c2th) <- pairMapM primASSUME =<< destConj (concl cth)
+       tms <- destConj (concl cth)
+       (c1th, c2th) <- pairMapM primASSUME tms
        (GS ti gls jfn) <- (ttac1 c1th `_THEN` ttac2 c2th) gl
        let jfn' i ths =
                do (thm1, thm2) <- ruleCONJ_PAIR $ ruleINSTANTIATE_ALL i cth
@@ -772,7 +773,8 @@ _STRIP_THM_THEN =
            , _CHOOSE_THEN
            ]
 
-_ANTE_RES_THEN :: BoolCtxt thry => ThmTactical HOLThm cls thry
+_ANTE_RES_THEN :: (BoolCtxt thry, HOLThmRep thm cls thry) 
+               => ThmTactic HOLThm cls thry -> ThmTactic thm cls thry
 _ANTE_RES_THEN ttac ante = _ASSUM_LIST $ \ asl g -> 
     do tacs <- mapFilterM (\ imp -> do th' <- ruleMATCH_MP imp ante
                                        return (ttac th')) asl
@@ -835,38 +837,37 @@ _SUBGOAL_THEN ptm ttac g@(Goal asl _) =
         justification _ _ _ = fail "_SUBGOAL_THEN: improper justification"
 
 -- metavariable tactics
-tacX_META_EXISTS :: (BoolCtxt thry, HOLTermRep tm cls thry) 
+tacX_META_EXISTS :: forall tm cls thry.
+                    (BoolCtxt thry, HOLTermRep tm cls thry) 
                  => tm -> Tactic cls thry
 tacX_META_EXISTS ptm (Goal asl w@(Exists v bod)) = note "tacX_META_EXISTS" $
     do t <- toHTm ptm
        bod' <- varSubst [(v, t)] bod
-       return . GS ([t], nullInst) [Goal asl bod'] $ justification t
-  where justification :: BoolCtxt thry => HOLTerm -> Justification cls thry 
-        justification t i [th] =
-            ruleEXISTS (instantiate i w) (instantiate i t) th
-        justification _ _ _    = fail "tacX_META_EXISTS: improper justification"
+       return $! GS ([t], nullInst) [Goal asl bod'] justification
+  where justification :: BoolCtxt thry => Justification cls thry 
+        justification i [th] =
+            ruleEXISTS (instantiate i w) (instantiate i ptm) th
+        justification _ _    = fail "tacX_META_EXISTS: improper justification"
 tacX_META_EXISTS _ _ = 
     fail "tacX_META_EXISTS: goal not existentially quantified."
 
-tacMETA_SPEC :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
+tacMETA_SPEC :: forall tm thm cls thry.
+                (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
              => tm -> ThmTactic thm cls thry
 tacMETA_SPEC ptm pthm (Goal asl w) = note "tacMETA_SPEC" $
     do t <- toHTm ptm
        thm <- toHThm pthm
        sth <- ruleSPEC t thm
-       return . GS ([t], nullInst) [Goal (("", sth):asl) w] $ 
-                  justification t thm
-  where justification :: BoolCtxt thry 
-                      => HOLTerm -> HOLThm -> Justification cls thry
-        justification t thm i [th] = 
-            do thm' <- ruleSPEC (instantiate i t) thm
-               rulePROVE_HYP thm' th
-        justification _ _ _ _      = fail "tacMETA_SPEC: improper justification"
+       return $! GS ([t], nullInst) [Goal (("", sth):asl) w] justification
+  where justification :: Justification cls thry
+        justification i [th] = 
+            rulePROVE_HYP (ruleSPEC (instantiate i ptm) pthm) th
+        justification _ _      = fail "tacMETA_SPEC: improper justification"
 
 -- tactic proofs
 mkGoalstate :: BoolCtxt thry => Goal -> HOL cls thry (GoalState cls thry)
 mkGoalstate g@(Goal _ w)
-    | typeOf w == tyBool = return $! GS nullMeta [g] justification
+    | K.typeOf w == tyBool = return $! GS nullMeta [g] justification
     | otherwise = fail "mkGoalstate: non-boolean goal"
   where justification :: BoolCtxt thry => Justification cls thry
         justification i [th] = ruleINSTANTIATE_ALL i th

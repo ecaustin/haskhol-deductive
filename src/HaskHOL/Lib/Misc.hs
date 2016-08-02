@@ -22,5 +22,5 @@ tacASSUM_REWRITE :: BoolCtxt thry => (HOLThm -> HOL cls thry HOLThm)
                  -> Tactic cls thry
 tacASSUM_REWRITE rl =
     _FIRST_X_ASSUM (\ thm gl ->
-                      do th <- ruleREWRITE_NIL =<< rl thm
+                      do th <- ruleREWRITE_NIL $ rl thm
                          tacASSUME th gl)

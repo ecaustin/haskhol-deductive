@@ -18,11 +18,10 @@ library
     default-extensions: ConstraintKinds, DeriveDataTypeable, FlexibleContexts,
                         OverloadedStrings, PatternSynonyms, QuasiQuotes, 
                         TemplateHaskell, TypeFamilies
-    build-depends:   base >= 4.7
-                   , template-haskell >= 2.9
-                   , wl-pprint-extras >= 3.5
-                   , wl-pprint-terminfo >= 3.7
-                   , haskhol-core >= 1.2
+    build-depends:   base >= 4.9 && < 5.0
+                   , template-haskell >= 2.11
+                   , ansi-wl-pprint >= 0.6
+                   , haskhol-core >= 1.3
 
     exposed-modules:
       HaskHOL.Deductive
@@ -65,8 +64,12 @@ library
       HaskHOL.Lib.TypeQuant.PQ
       HaskHOL.Lib.Trivia.PQ
              
-    ghc-prof-options: -O2 -funbox-strict-fields -Wall -fprof-auto
-    ghc-options: -O2 -funbox-strict-fields -Wall
+    ghc-prof-options: -O2 -funbox-strict-fields -Wall -fprof-auto 
+                      -fconstraint-solver-iterations=0
+                      -fno-warn-redundant-constraints
+    ghc-options: -O2 -funbox-strict-fields -Wall 
+                 -fconstraint-solver-iterations=0
+                 -fno-warn-redundant-constraints
 source-repository head
   type: git 
   location: git://github.com/ecaustin/haskhol-deductive.git

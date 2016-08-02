@@ -251,7 +251,7 @@ thmSKOLEM = cacheProof "thmSKOLEM" ctxtClassic .
 isSelect :: HOLTerm -> Bool
 isSelect = isBinder "@"
 
-destSelect :: HOLTerm -> Maybe (HOLTerm, HOLTerm)
+destSelect :: HOLTermRep tm cls thry => tm -> HOL cls thry (HOLTerm, HOLTerm)
 destSelect = destBinder "@"
 
 mkSelect :: (HOLTermRep tm1 cls thry, HOLTermRep tm2 cls thry) 
@@ -259,7 +259,7 @@ mkSelect :: (HOLTermRep tm1 cls thry, HOLTermRep tm2 cls thry)
 mkSelect = mkBinder "@"
 
 isCond :: HOLTerm -> Bool
-isCond (Comb _ (Comb _ (Comb (Const "COND" _) _))) = True
+isCond (Comb (Comb (Comb (Const "COND" _) _) _) _) = True
 isCond _ = False
 
 mkCond :: HOLTerm -> HOLTerm -> HOLTerm -> HOL cls thry HOLTerm

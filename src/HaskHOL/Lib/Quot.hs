@@ -16,6 +16,7 @@ module HaskHOL.Lib.Quot
     ) where
 
 import HaskHOL.Core
+import qualified HaskHOL.Core.Kernel as K (typeOf)
 
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Classic
@@ -67,13 +68,13 @@ defineQuotientType :: (BoolCtxt thry, HOLTermRep tm Theory thry) => Text
 defineQuotientType tyname absname repname tm = 
     getQuotientType tyname <|> (note "defineQuotientType" $
       do eqv <- toHTm tm
-         case typeOf eqv of
+         case K.typeOf eqv of
            (TyApp _ (ty:_)) ->
                do pty <- mkFunTy ty tyBool
                   s <- mkVar "s" pty
                   x <- mkVar "x" ty
                   eqvx <- mkComb eqv x
-                  exx <- mkExists x =<< mkEq s eqvx
+                  exx <- mkExists x $ mkEq s eqvx
                   predtm <- mkAbs s exx
                   th0 <- runConv convBETA $ mkComb predtm eqvx
                   rtm <- rand $ concl th0
@@ -118,10 +119,9 @@ liftFunction ptybij2 refl_th trans_th fname pwth =
              do wth <- toHThm pwth
                 wtm <- repeatM (liftM snd . destForall) $ concl wth
                 let wfvs = frees wtm
-                    (hyps, con) = case runCatch $ destImp wtm of
-                                    Right (l, r) -> (conjuncts l, r)
-                                    _ -> ([], wtm)
-                    (eqs, rels) = partition isEq hyps
+                (hyps, con) <- (do (l, r) <- destImp wtm 
+                                   return (conjuncts l, r)) <|> return ([], wtm)
+                let (eqs, rels) = partition isEq hyps
                 rvs <- mapM lHand rels
                 qvs <- mapM lhs eqs
                 let ety = typeOf mrt
@@ -145,7 +145,7 @@ liftFunction ptybij2 refl_th trans_th fname pwth =
                 let ldef = mkVar fname $ typeOf rdef
                 edef <- mkEq ldef rdef
                 dth <- newDefinition (fname, edef)
-                eth <- foldlM (\ th v -> ruleCONV (convRAND convBETA) =<<
+                eth <- foldlM (\ th v -> ruleCONV (convRAND convBETA) $
                                            (ruleAP_THM th v)) dth newargs
                 targs <- mapM (mkComb mk . mkComb eqv) rvs
                 dme_th <- do th <- primINST [(rtm, eqvx)] tybij2
@@ -154,7 +154,7 @@ liftFunction ptybij2 refl_th trans_th fname pwth =
                 ith <- primINST (zip evs targs) eth
                 rths <- mapM (\ v -> primINST [(xtm, v)] dme_th) rvs
                 jth <- ruleSUBS rths ith
-                (apop, uxtm) <- destComb =<< rand (concl jth)
+                (apop, uxtm) <- destComb $ rand (concl jth)
                 extm <- body uxtm
                 let (evs', bod) = stripExists extm
                 th1 <- primASSUME bod
@@ -176,7 +176,7 @@ liftFunction ptybij2 refl_th trans_th fname pwth =
                 th3 <- primASSUME $ concl th2
                 ths <- mapM (`ruleSPEC` refl_th) rvs
                 th4 <- foldr1M ruleCONJ (th3:ths)
-                th5 <- flip (foldrM ruleSIMPLE_EXISTS) evs =<< primASSUME bod
+                th5 <- flip (foldrM ruleSIMPLE_EXISTS) evs' =<< primASSUME bod
                 th6 <- ruleMATCH_MP (ruleDISCH_ALL th5) th4
                 th7 <- ruleIMP_ANTISYM (ruleDISCH_ALL th2) $ ruleDISCH_ALL th6
                 th8 <- primTRANS jth . ruleAP_TERM apop $ primABS u th7

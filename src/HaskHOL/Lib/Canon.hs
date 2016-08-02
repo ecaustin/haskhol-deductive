@@ -27,6 +27,7 @@ module HaskHOL.Lib.Canon
     ) where
 
 import HaskHOL.Core
+import qualified HaskHOL.Core.Kernel as K (typeOf)
 
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Classic
@@ -205,7 +206,7 @@ findLambda Var{} = fail "findLambda: var case"
 findLambda Const{} = fail "findLambda: const case"
 findLambda tm = 
     if isForall tm || isExists tm || isUExists tm
-    then findLambda =<< body =<< rand tm
+    then findLambda =<< body (rand tm)
     else case tm of
            (Comb l r) -> 
                findLambda l <|> findLambda r
@@ -288,9 +289,9 @@ iconvSELECT_ELIM = Conv $ \ tm ->
         th1 <- selectAxThm t
         itm <- mkImp (concl th1) tm
         ith <- primASSUME itm
-        th2 <- ruleDISCH_ALL =<< ruleMP ith th1
+        th2 <- ruleDISCH_ALL $ ruleMP ith th1
         let fvs = frees t
-        fty <- foldrM (mkFunTy . typeOf) (typeOf t) fvs
+        fty <- foldrM (mkFunTy . typeOf) (K.typeOf t) fvs
         fn <- genVar fty
         atm <- listMkAbs fvs t
         rawdef <- mkEq fn atm
@@ -326,16 +327,16 @@ tacSELECT_ELIM =
 condsElimConv :: TriviaCtxt thry => Bool -> Conversion cls thry    
 condsElimConv dfl = Conv $ \ tm ->
     (do t <- findConditional [] tm
-        p <- lHand =<< rator t
+        p <- lHand $ rator t
         prosimps <- basicNet
         let conv = convDEPTH (convREWRITES prosimps)
         thNew <- case p of
                    F -> runConv conv tm
                    T -> runConv conv tm
                    _ ->
-                       do asm0 <- mkEq p =<< tmFalse
+                       do asm0 <- mkEq p $ tmFalse
                           ath0 <- primASSUME asm0
-                          asm1 <- mkEq p =<< tmTrue
+                          asm1 <- mkEq p $ tmTrue
                           ath1 <- primASSUME asm1
                           simp0 <- netOfThm False ath0 prosimps
                           simp1 <- netOfThm False ath1 prosimps
@@ -349,7 +350,7 @@ condsElimConv dfl = Conv $ \ tm ->
                           th3 <- ruleMATCH_MP convTh th2
                           let cnv = _TRY (convREWRITES prosimps)
                               proptsimpConv = convBINOP cnv `_THEN` cnv
-                          rth <- runConv proptsimpConv =<< rand (concl th3)
+                          rth <- runConv proptsimpConv $ rand (concl th3)
                           primTRANS th3 rth
         ruleCONV (convRAND $ condsElimConv dfl) thNew) <|>
        (if isNeg tm 
@@ -404,11 +405,11 @@ distributeDNF = Conv $ \ tm -> note "distributeDNF" $
     case tm of
       (a :/\ (b :\/ c)) ->
           do th <- primINST [(tmA, a), (tmB, b), (tmC, c)] convWEAK_DNF_pth1
-             th' <- runConv (convBINOP distributeDNF) =<< rand (concl th)
+             th' <- runConv (convBINOP distributeDNF) $ rand (concl th)
              primTRANS th th'
       ((a :\/ b) :/\ c) ->
           do th <- primINST [(tmA, a), (tmB, b), (tmC, c)] convWEAK_DNF_pth2
-             th' <- runConv (convBINOP distributeDNF) =<< rand (concl th)
+             th' <- runConv (convBINOP distributeDNF) $ rand (concl th)
              primTRANS th th'
       _ -> primREFL tm
   where convWEAK_DNF_pth1 :: TriviaCtxt thry => HOL cls thry HOLThm
@@ -429,7 +430,7 @@ convWEAK_DNF = Conv $ \ tm -> note "convWEAK_DNF" $
           do l' <- runConv convWEAK_DNF l
              r' <- runConv convWEAK_DNF r
              th <- primMK_COMB (ruleAP_TERM tmAnd l') r'
-             th' <- runConv distributeDNF =<< rand (concl th)
+             th' <- runConv distributeDNF $ rand (concl th)
              primTRANS th th'
       _ -> primREFL tm
 
@@ -439,11 +440,11 @@ distribute = Conv $ \ tm -> note "distribute" $
     case tm of
       (a :\/ (b :/\ c)) ->
           do th <- primINST [(tmA, a), (tmB, b), (tmC, c)] distribute_pth1
-             rth <- runConv (convBINOP distribute) =<< rand (concl th)
+             rth <- runConv (convBINOP distribute) $ rand (concl th)
              primTRANS th rth
       ((a :/\ b) :\/ c) ->
           do th <- primINST [(tmA, a), (tmB, b), (tmC, c)] distribute_pth2
-             rth <- runConv (convBINOP distribute) =<< rand (concl th)
+             rth <- runConv (convBINOP distribute) $ rand (concl th)
              primTRANS th rth
       _ -> primREFL tm
   where distribute_pth1 :: TriviaCtxt thry => HOL cls thry HOLThm
@@ -491,7 +492,7 @@ convASSOC :: (BoolCtxt thry, HOLThmRep thm cls thry) => thm
 convASSOC thm = Conv $ \ tm -> note "convASSOC" $
     do thm' <- ruleSYM $ ruleSPEC_ALL thm
        case concl thm' of
-         (_ := (Binary op x (Binary _ y z))) ->
+         (_ := (Binop op x (Binop _ y z))) ->
              canonAssoc op x y z thm' tm
          _ -> fail "bad term structure."
   where canonAssoc :: HOLTerm -> HOLTerm -> HOLTerm -> HOLTerm -> HOLThm 
@@ -759,17 +760,17 @@ nnfConv' cf baseconvs@(base1, base2) = Conv $ \ tm ->
               lth4 <- ruleAP_TERM ltm thLn
               primTRANS lth1 . primMK_COMB lth3 $ primMK_COMB lth4 rth2)
           <?> "nnfConv': equality case"
-      (Bind' "!" bod@(Abs x@(Var _ ty) t)) ->
+      (BindWhole "!" bod@(Abs x@(Var _ ty) t)) ->
           let ?pth = pthNotForall
               ?cf = cf
               ?rule = ruleMK_EXISTS in
             quantCase "forall" bod x t ty
-      (Bind' "?" bod@(Abs x@(Var _ ty) t)) ->
+      (BindWhole "?" bod@(Abs x@(Var _ ty) t)) ->
           let ?pth = pthNotExists
               ?cf = True
               ?rule = ruleMK_FORALL in
             quantCase "exists" bod x t ty
-      (Bind' "?!" bod@(Abs x@(Var _ ty) t)) ->
+      (BindWhole "?!" bod@(Abs x@(Var _ ty) t)) ->
           (do (thP, thN) <- nnfDConv cf base2 t
               let y = variant (x:frees t) x 
               eq <- mkEq y x
@@ -871,13 +872,13 @@ nnfConv cf baseconvs@(base1, base2) = Conv $ \ tm ->
           <?> "nnfConv: equation case"
       (Comb q@(Const "!" _) (Abs x t)) ->
           (do thP <- runConv (nnfConv True baseconvs) t
-              ruleAP_TERM q =<< primABS x thP)
+              ruleAP_TERM q $ primABS x thP)
           <?> "nnfConv: forall case"
       (Comb q@(Const "?" _) (Abs x t)) ->
           (do thP <- runConv (nnfConv cf baseconvs) t
-              ruleAP_TERM q =<< primABS x thP)
+              ruleAP_TERM q $ primABS x thP)
           <?> "nnfConv: exists case"
-      (Bind' "?!" bod@(Abs x@(Var _ ty) t)) ->
+      (BindWhole "?!" bod@(Abs x@(Var _ ty) t)) ->
           (do (thP, thN) <- nnfDConv cf base2 t
               let y = variant (x:frees t) x
               eq <- mkEq y x
@@ -914,12 +915,12 @@ convGEN_NNF = nnfConv
 
 convNNF :: TriviaCtxt thry => Conversion cls thry
 convNNF = convGEN_NNF False (_ALL, \ t -> do th1 <- primREFL t
-                                             th2 <- primREFL =<< mkNeg t
+                                             th2 <- primREFL $ mkNeg t
                                              return (th1, th2))
 
 convNNFC :: TriviaCtxt thry => Conversion cls thry
 convNNFC = convGEN_NNF True (_ALL, \ t -> do th1 <- primREFL t
-                                             th2 <- primREFL =<< mkNeg t
+                                             th2 <- primREFL $ mkNeg t
                                              return (th1, th2))
                                                      
 

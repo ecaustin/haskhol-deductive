@@ -89,10 +89,10 @@ canonicalizeClause cls args = note "canonicalizeClause" $
              nvs = filter (\ x -> x `notElem` map snd yes) avs
              canon' = canon rel plis yes nvs
          eth <- if isImp bimp 
-                then do atm <- foldrM (\ x y -> flip mkConj y =<< 
+                then do atm <- foldrM (\ x y -> flip mkConj y $
                                                   uncurry mkEq x) ant (yes++no)
-                        (ths, tth) <- nsplit ruleCONJ_PAIR plis =<< 
-                                        primASSUME atm
+                        ath <- primASSUME atm
+                        (ths, tth) <- nsplit ruleCONJ_PAIR plis ath
                         th0 <- ruleMP (ruleSPECL avs $ primASSUME cls) tth
                         (th6, th5') <- canon' atm th0 ths
                         th7 <- itlistM (ruleCONJ . primREFL . snd) no =<< 
@@ -106,7 +106,7 @@ canonicalizeClause cls args = note "canonicalizeClause" $
                         th7 <- foldr1M ruleCONJ =<< mapM (primREFL . snd) no
                         th8 <- ruleGENL avs $ ruleMP th6 th7
                         ruleIMP_ANTISYM th5' $ ruleDISCH_ALL th8
-         ftm <- funpowM (length args) (body <=< rand) =<< rand (concl eth)
+         ftm <- funpowM (length args) (body . rand) =<< rand (concl eth)
          fth <- itlistM ruleMK_FORALL args =<< runConv convFORALL_IMPS ftm
          primTRANS eth fth
   where convFORALL_IMPS :: BoolCtxt thry => Conversion cls thry
@@ -127,10 +127,9 @@ canonicalizeClause cls args = note "canonicalizeClause" $
               -> [HOLTerm] -> HOLTerm -> HOLThm -> [HOLThm] 
               -> HOL cls thry (HOLThm, HOLThm)
         canon rel plis yes nvs atm th0 ths =
-            do thl <- mapM (\ t -> find (\ th -> 
-                            case runCatch . lhs $ concl th of
-                              Right res -> res == t
-                              _ -> False) ths) args
+            do thl <- mapM (\ t -> findM (\ th -> 
+                            (do res <- lhs $ concl th
+                                return $! res == t) <|> return False) ths) args
                th1 <- revItlistM (flip primMK_COMB) thl =<< primREFL rel
                th2 <- primEQ_MP (ruleSYM th1) th0
                th3 <- primINST yes $ ruleDISCH atm th2
@@ -157,36 +156,34 @@ canonicalizeClause cls args = note "canonicalizeClause" $
            
 canonicalizeClauses :: IndDefsCtxt thry => [HOLTerm] -> HOL cls thry HOLThm
 canonicalizeClauses clauses = 
-  let concls = map getConcl clauses
-      uncs = map stripComb concls
-      rels = foldr (insert . fst) [] uncs in
-    do xargs <- mapM (`assoc` uncs) rels
-       closed <- listMkConj clauses
-       let avoids = variables closed
-           flargs = mkArgs "a" avoids . map typeOf $ foldr1 (++) xargs
-       zargs <- liftM (zip rels) $ shareOut xargs flargs
-       cargs <- mapM (\ (x, _) -> x `assoc` zargs) uncs
-       cthms <- map2M canonicalizeClause clauses cargs
-       pclauses <- mapM (rand . concl) cthms
-       let collectClauses tm = 
-               mapFilter (\ (x, y) -> if x == tm then return y 
-                                      else fail' "collectClauses") $  
-                 zip (map fst uncs) pclauses
-           clausell = map collectClauses rels
-       cclausel <- mapM listMkConj clausell
-       cclauses <- listMkConj cclausel
-       oclauses <- listMkConj pclauses
-       eth <- ruleCONJ_ACI =<< mkEq oclauses cclauses
-       cth <- foldr1M ruleMK_CONJ cthms
-       pth <- primTRANS cth eth
-       th1 <- foldr1M ruleMK_CONJ =<< mapM ruleAND_IMPS_CONV cclausel 
-       primTRANS pth th1
-  where getConcl :: HOLTerm -> HOLTerm
+  do concls <- mapM getConcl clauses
+     let uncs = map stripComb concls
+         rels = foldr (insert . fst) [] uncs
+     xargs <- mapM (`assoc` uncs) rels
+     closed <- listMkConj clauses
+     let avoids = variables closed
+     flargs <- mkArgs "a" avoids `fmap` mapM typeOf (foldr1 (++) xargs)
+     zargs <- liftM (zip rels) $ shareOut xargs flargs
+     cargs <- mapM (\ (x, _) -> x `assoc` zargs) uncs
+     cthms <- map2M canonicalizeClause clauses cargs
+     pclauses <- mapM (rand . concl) cthms
+     let collectClauses tm = 
+           mapFilter (\ (x, y) -> if x == tm then return y 
+                                  else fail' "collectClauses") $  
+             zip (map fst uncs) pclauses
+         clausell = map collectClauses rels
+     cclausel <- mapM listMkConj clausell
+     cclauses <- listMkConj cclausel
+     oclauses <- listMkConj pclauses
+     eth <- ruleCONJ_ACI $ mkEq oclauses cclauses
+     cth <- foldr1M ruleMK_CONJ cthms
+     pth <- primTRANS cth eth
+     th1 <- foldr1M ruleMK_CONJ =<< mapM ruleAND_IMPS_CONV cclausel 
+     primTRANS pth th1
+  where getConcl :: HOLTerm -> HOL cls thry HOLTerm
         getConcl tm =
-            let bod = try' $ repeatM (liftM snd . destForall) tm in
-              case runCatch . liftM snd $ destImp bod of
-                Right res -> res
-                Left  _   -> bod
+            do bod <- repeatM (liftM snd . destForall) tm
+               (snd `fmap` destImp bod) <|> return bod
 
         ruleCONJ_ACI :: (TheoremsCtxt thry, HOLTermRep tm cls thry) 
                      => tm -> HOL cls thry HOLThm
@@ -236,9 +233,9 @@ deriveCanonInductiveRelations cls =
         indThms <- map2M (mkInd rels') vargs defThms
         indThmr <- foldr1M ruleCONJ indThms
         indThm <- ruleGENL rels' $ ruleDISCH closed' indThmr
-        mConcs <- map2M (\ a t -> do t' <- mkImp t =<< primeFun t
+        mConcs <- map2M (\ a t -> do t' <- mkImp t $ primeFun t
                                      listMkForall a t') vargs ants
-        monoTm <- mkImp (concl indThmr) =<< listMkConj mConcs
+        monoTm <- mkImp (concl indThmr) $ listMkConj mConcs
         monoTm' <- listMkForall rels' monoTm
         forallMonoTm' <- listMkForall rels monoTm'
         monoThm <- primASSUME forallMonoTm'
@@ -266,13 +263,13 @@ deriveCanonInductiveRelations cls =
         fThms <- ruleCONJUNCTS fThm
         caseThm <- foldr1M ruleCONJ =<< map2M mkCase fThms =<< 
                      ruleCONJUNCTS ruleThm
-        ruleCONJ ruleThm =<< ruleCONJ indThm caseThm)
+        ruleCONJ ruleThm $ ruleCONJ indThm caseThm)
     <?> "deriveCanonInductiveRelations"
 
     where mkDef :: (HOLTerm -> HOL cls thry HOLTerm) -> HOLTerm -> [HOLTerm]
                 -> [HOLTerm] -> HOLTerm -> HOL cls thry HOLTerm
           mkDef f closed rels arg con = 
-              do tm <- mkImp closed =<< f con
+              do tm <- mkImp closed $ f con
                  tm' <- listMkForall rels tm
                  l <- repeatM rator con
                  r <- listMkAbs arg tm'
@@ -304,11 +301,15 @@ deriveCanonInductiveRelations cls =
               case stripForall tm of
                 (avs, Comb (Comb i l) r) -> 
                     do bth <- ruleRIGHT_BETAS avs $ primREFL dtm
-                       let quantify thm = foldrM ruleMK_FORALL thm avs
-                       munb <- quantify =<< ruleAP_THM (ruleAP_TERM i bth) r
-                       iunb <- quantify =<< ruleAP_TERM (mkComb i $ f l) bth
+                       let quantify :: (BoolCtxt thry, HOLThmRep thm cls thry)
+                                    => thm -> HOL cls thry HOLThm
+                           quantify pthm =
+                               do thm <- toHThm pthm
+                                  foldrM ruleMK_FORALL thm avs
+                       munb <- quantify $ ruleAP_THM (ruleAP_TERM i bth) r
+                       iunb <- quantify $ ruleAP_TERM (mkComb i $ f l) bth
                        ir <- mkComb i r
-                       junb <- quantify =<< ruleAP_TERM ir bth
+                       junb <- quantify $ ruleAP_TERM ir bth
                        return (munb, (iunb, junb))
                 _ -> fail "mkUnbetas"
 
@@ -352,10 +353,10 @@ tacMONO g =
                   rnum = length vars - 1 in
                 do ((hd1, args1), (hd2, args2)) <- pairMapM (stripNComb rnum) 
                                                      (ant, con)
-                   th1 <- revItlistM (flip ruleAP_THM) args1 =<< 
-                            runConv convBETA hd1
-                   th2 <- revItlistM (flip ruleAP_THM) args2 =<<
-                            runConv convBETA hd2
+                   th0_5 <- runConv convBETA hd1
+                   th1 <- revItlistM (flip ruleAP_THM) args1 th0_5 
+                   th1_5 <- runConv convBETA hd2
+                   th2 <- revItlistM (flip ruleAP_THM) args2 th1_5
                    th3 <- ruleAP_TERM (serve [indDefs| (==>) |]) th1
                    th4 <- primMK_COMB th3 th2
                    tacCONV (convREWR th4) gl
@@ -382,7 +383,7 @@ tacMONO g =
           tacFun :: BoolCtxt thry => HOLThm -> [(Text, Tactic cls thry)] 
                  -> HOL cls thry [(Text, Tactic cls thry)]
           tacFun th l =
-              do x <- rand =<< rand (concl th)
+              do x <- rand $ rand (concl th)
                  x' <- repeatM rator x
                  let c = case x' of
                            Const n _ -> n
@@ -409,8 +410,9 @@ proveMonotonicityHyps thm =
             _REPEAT tacGEN `_THEN`
             _DISCH_THEN (_REPEAT _CONJUNCTS_THEN tacASSUME) `_THEN`
             _REPEAT tacCONJ `_THEN` tacMONO in
-      foldrM rulePROVE_HYP thm =<< 
-        (mapFilterM proveFun . filter (not . isEq) $ hyp thm)
+      do tms <- mapFilterM proveFun . filter (not . isEq) $ hyp thm
+         foldrM rulePROVE_HYP thm tms
+        
 
 
 proveInductiveProperties :: (IndDefsCtxt thry, 
@@ -419,7 +421,8 @@ proveInductiveProperties :: (IndDefsCtxt thry,
 proveInductiveProperties ptm = 
     do tm <- toHTm ptm
        (clauses', fvs) <- unschematizeClauses $ conjuncts tm
-       th <- deriveNonschematicInductiveRelations =<< listMkConj clauses'
+       clauses'' <- listMkConj clauses'
+       th <- deriveNonschematicInductiveRelations clauses''
        mth <- proveMonotonicityHyps th
        return (fvs, mth)
   where unschematizeClauses :: [HOLTerm] -> HOL cls thry ([HOLTerm], [HOLTerm])
@@ -449,11 +452,12 @@ proveInductiveProperties ptm =
             if null (frees tm `intersect` qvs) &&
                all isVar (snd $ stripComb tm)
             then return tm
-            else pareComb qvs =<< rator tm
+            else do tm' <- rator tm
+                    pareComb qvs tm'
 
         hackFun :: HOLTerm -> HOL cls thry HOLTerm
         hackFun tm = 
-            do (s, _) <- destVar =<< repeatM rator tm
+            do (s, _) <- destVar $ repeatM rator tm
                mkVar s $! typeOf tm
 
 generalizeSchematicVariables :: BoolCtxt thry => Bool -> [HOLTerm] 

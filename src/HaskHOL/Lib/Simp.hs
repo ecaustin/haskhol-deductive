@@ -464,7 +464,7 @@ convIMP_REWRITES strat ss@(Simpset _ prover _ _) lev pconvs =
                  then return th
                  else if lev <= 0 
                       then fail "convIMP_REWRITES: too deep"
-                      else ruleMP th $ runConv (prover strat ss (lev-1)) =<< 
+                      else ruleMP th . runConv (prover strat ss (lev-1)) $ 
                              lHand etm) pconvs
 
 convGEN_SUB :: BoolCtxt thry => Strategy cls thry

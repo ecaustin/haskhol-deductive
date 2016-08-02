@@ -19,6 +19,7 @@ module HaskHOL.Lib.Meson
     ) where
 
 import HaskHOL.Core
+import qualified HaskHOL.Core.Kernel as K (typeOf)
 
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Canon
@@ -331,8 +332,8 @@ createEquivalenceAxioms :: TriviaCtxt thry => (HOLTerm, Int)
                         -> HOL cls thry [HOLThm]
 createEquivalenceAxioms (eq, _) =
     (do ths@(th:_) <- sequence eqThms
-        veqTm <- rator =<< rator (concl th)
-        tyins <- typeMatch (typeOf veqTm) (typeOf eq)
+        veqTm <- rator $ rator (concl th)
+        tyins <- typeMatch_NIL (typeOf veqTm) (typeOf eq)
         mapM (primINST_TYPE_FULL tyins) ths)
     <?> "createEquivalenceAxioms"
   where eqThms :: TriviaCtxt thry => [HOL cls thry HOLThm]
@@ -360,7 +361,7 @@ fmConsts (l :\/ r) acc = fmConsts l $ fmConsts r acc
 fmConsts (l :==> r) acc = fmConsts l $ fmConsts r acc
 fmConsts (Neg x) acc = fmConsts x acc
 fmConsts tm@(l := r) acc
-    | typeOf l == tyBool = fmConsts r $ fmConsts l acc
+    | K.typeOf l == tyBool = fmConsts r $ fmConsts l acc
     | otherwise = fmConstsBad tm acc
 fmConsts tm acc = fmConstsBad tm acc
                                               
@@ -374,15 +375,15 @@ fmConstsBad tm acc@(preds, funs) =
 createCongruenceAxiom :: TriviaCtxt thry => Bool -> (HOLTerm, Int) 
                       -> HOL cls thry HOLThm
 createCongruenceAxiom pflag (tm, len) =
-    let (atys, _) = splitList destFunTy $ typeOf tm in
-      (do (ctys, _) <- trySplitAt len atys
-          largs <- mapM genVar ctys
-          rargs <- mapM genVar ctys
-          th1 <- primREFL tm
-          ths <- mapM (primASSUME <=< uncurry mkEq) $ zip largs rargs
-          th2 <- foldlM primMK_COMB th1 ths
-          th3@(Thm asl _) <- if pflag then ruleEqElim th2 else return th2
-          foldrM (\ e th -> ruleCONV convImpElim $ ruleDISCH e th) th3 asl)
+    (do (atys, _) <- splitListM destFunTy =<< typeOf tm
+        (ctys, _) <- trySplitAt len atys
+        largs <- mapM genVar ctys
+        rargs <- mapM genVar ctys
+        th1 <- primREFL tm
+        ths <- mapM (primASSUME <=< uncurry mkEq) $ zip largs rargs
+        th2 <- foldlM primMK_COMB th1 ths
+        th3@(Thm asl _) <- if pflag then ruleEqElim th2 else return th2
+        foldrM (\ e th -> ruleCONV convImpElim $ ruleDISCH e th) th3 asl)
       <?> "createCongruenceAxiom"
 
 createEqualityAxioms :: TriviaCtxt thry => [HOLTerm] -> HOL cls thry [HOLThm]
@@ -417,7 +418,7 @@ grabConstants tm acc = findTerms isConst tm `union` acc
 
 matchConsts :: (HOLTerm, HOLTerm) -> HOL cls thry SubstTrip
 matchConsts (Const s1 ty1, Const s2 ty2)
-    | s1 == s2 = typeMatch ty1 ty2
+    | s1 == s2 = typeMatch_NIL ty1 ty2
     | otherwise = fail' "matchConsts: consts of different name"
 matchConsts _ = fail' "matchConsts"
 
@@ -666,8 +667,8 @@ tacPURE_MESON ref minVal maxVal inc goal =
                         do acth <- if n == 0 then return th
                                    else do (ldjs, rdj:rdjs) <- trySplitAt n djs
                                            let ndjs = rdj : (ldjs ++ rdjs)
-                                           th1 <- runConv convDISJ_AC =<< 
-                                                    mkEq tm =<< listMkDisj ndjs
+                                           th1 <- runConv convDISJ_AC . 
+                                                    mkEq tm $ listMkDisj ndjs
                                            primEQ_MP th1 th
                            fth <- if length djs == 1 then return acth
                                   else ruleCONV (convImp `_THEN` convPush) acth
@@ -706,7 +707,7 @@ tacPURE_MESON ref minVal maxVal inc goal =
                       else do cth <- makeHOLContrapos n th
                               if null ths 
                                  then return cth
-                                 else ruleMATCH_MP cth =<< foldr1M ruleCONJ ths
+                                 else ruleMATCH_MP cth $ foldr1M ruleCONJ ths
                ith <- rulePART_MATCH return hth holG
                tm <- holNegate $ concl ith
                finishRule =<< ruleDISCH tm ith
@@ -766,15 +767,14 @@ tacPURE_MESON ref minVal maxVal inc goal =
 
       holOfLiteral :: FOLAtom -> HOL cls thry HOLTerm
       holOfLiteral fa@(p, args)
-          | p < 0 = mkNeg =<< holOfAtom (negate p, args)
+          | p < 0 = mkNeg $ holOfAtom (negate p, args)
           | otherwise = holOfAtom fa
 
       folOfLiteral :: [HOLTerm] -> [HOLTerm] -> HOLTerm -> HOL cls thry FOLAtom
-      folOfLiteral env consts tm =
-          case destNeg tm of
-            Nothing -> folOfAtom env consts tm
-            Just tm' -> do (p, a) <- folOfAtom env consts tm'
-                           return (negate p, a)
+      folOfLiteral env consts (Neg tm') =
+          do (p, a) <- folOfAtom env consts tm'
+             return (negate p, a)
+      folOfLiteral env consts tm = folOfAtom env consts tm
 
       holOfConst :: Int -> HOL cls thry HOLTerm
       holOfConst c = note "holOfConst" $
@@ -834,7 +834,8 @@ tacGEN_MESON :: (TriviaCtxt thry, HOLThmRep thm cls thry)
              => Int -> Int -> Int 
              -> [thm] -> Tactic cls thry
 tacGEN_MESON minVal maxVal step ths gl = 
-    do ref <- newHOLRef =<< initializeMeson
+    do val <- initializeMeson
+       ref <- newHOLRef val
        ths' <- mapM ruleGEN_ALL ths
        (tacREFUTE_THEN tacASSUME `_THEN`
         tacPOLY_ASSUME ths' `_THEN`
@@ -855,11 +856,9 @@ tacGEN_MESON minVal maxVal step ths gl =
         tacASM_FOL `_THEN`
         tacSPLIT mesonSplitLimit `_THEN`
         tacRULE_ASSUM (ruleCONV (convPRENEX `_THEN` convWEAK_CNF)) `_THEN`
-        tacRULE_ASSUM (repeatM (\ th -> case destForall $ concl th of
-                                           Just (x, _) -> 
-                                               do tm <- genVar $ typeOf x
-                                                  ruleSPEC tm th
-                                           Nothing -> fail "")) `_THEN`
+        tacRULE_ASSUM (repeatM (\ th@(Thm _ (Forall x _)) -> 
+                                    do tm <- genVar $ typeOf x
+                                       ruleSPEC tm th)) `_THEN`
         _REPEAT (_FIRST_X_ASSUM (tacCONJUNCTS_THEN' tacASSUME)) `_THEN`
         tacRULE_ASSUM (ruleCONV (convASSOC thmDISJ_ASSOC)) `_THEN`
         _REPEAT (_FIRST_X_ASSUM tacSUBST_VAR) `_THEN`

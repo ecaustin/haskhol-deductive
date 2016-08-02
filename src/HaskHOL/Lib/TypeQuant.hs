@@ -26,6 +26,7 @@ module HaskHOL.Lib.TypeQuant
     ) where
 
 import HaskHOL.Core
+import qualified HaskHOL.Core.Kernel as K (inst, typeOf)
 
 import HaskHOL.Lib.Equal
 import HaskHOL.Lib.Bool
@@ -39,7 +40,7 @@ import HaskHOL.Lib.TypeQuant.PQ
 -- Equality Rules
 convALPHA_TY :: HOLType -> Conversion cls thry
 convALPHA_TY v@(TyVar True _) = Conv $ \ tm ->
-    (ruleALPHA tm =<< alphaTyabs v tm) <?> "convALPHA_TY"
+    (ruleALPHA tm $ alphaTyabs v tm) <?> "convALPHA_TY"
 convALPHA_TY _ = 
     _FAIL "convALPHA_TY: provided type is not a small type variable."
 
@@ -66,7 +67,7 @@ ruleGEN_TY ty@(TyVar True _) th =
        th1 <- ruleEQT_INTRO th
        th2 <- primTYABS ty th1
        phi <- lHand $ concl th2
-       ptm <- rand =<< rand (concl pth)
+       ptm <- rand . rand $ concl pth
        pth' <- primINST [(ptm, phi)] pth
        primEQ_MP pth' th2
   where -- proves |- P = (\\ 'x . T) <=> (!!) P
@@ -109,17 +110,16 @@ tacX_GEN_TY :: TypeQuantCtxt thry => HOLType -> Tactic cls thry
 tacX_GEN_TY x'@(TyVar True _) (Goal asl w@(TyAll x bod))
     | x `elem` avoids = fail "tacX_GEN_TY: provided type is free in goal"
     | otherwise =
-        (let afn = ruleCONV (convGEN_ALPHA_TY x)
-             bod' = inst [(x, x')] bod in
-           return . GS nullMeta [Goal asl bod'] $ justification afn)
+        (let bod' = K.inst [(x, x')] bod in
+           return $! GS nullMeta [Goal asl bod'] justification)
         <?> "tacX_GEN_TY"
   where avoids :: [HOLType]
         avoids = foldr (union . typeVarsInThm . snd) (typeVarsInTerm w) asl
 
-        justification :: TypeQuantCtxt thry => (HOLThm -> HOL cls thry HOLThm) 
-                      -> Justification cls thry
-        justification afn _ [th] = afn =<< ruleGEN_TY x' th
-        justification _ _ _ = fail "tacX_GEN_TY: improper justification"
+        justification :: TypeQuantCtxt thry => Justification cls thry
+        justification _ [th] = 
+            ruleCONV (convGEN_ALPHA_TY x) $ ruleGEN_TY x' th
+        justification _ _ = fail "tacX_GEN_TY: improper justification"
 tacX_GEN_TY _ _ = 
     fail "tacX_GEN_TY: goal not universally quantified over a type."
 
@@ -139,7 +139,7 @@ tacUTYPE_E ty = tacASSUM_REWRITE (ruleTYBETA . primTYAPP ty)
 tacTYABS_E :: BoolCtxt thry => Tactic cls thry
 tacTYABS_E = tacASSUM_REWRITE $ \ thm -> 
     do (l, _) <- destEq $ concl thm
-       (tv, _) <- destUType $ typeOf l
+       (tv, _) <- destUType $ K.typeOf l
        ruleTYBETA $ primTYAPP tv thm
 
 tacTYALL_ELIM :: TypeQuantCtxt thry => HOLType -> Tactic cls thry
@@ -147,7 +147,7 @@ tacTYALL_ELIM ty = tacASSUM_REWRITE (ruleSPEC_TY ty)
 
 tacTYALL_E :: TypeQuantCtxt thry => Tactic cls thry
 tacTYALL_E = tacASSUM_REWRITE $ \ thm -> 
-    do tv <- liftM fst . destTyAll $ concl thm
+    do tv <- fst `fmap` destTyAll (concl thm)
        ruleSPEC_TY tv thm
 
 tacTYABS :: Tactic cls thry

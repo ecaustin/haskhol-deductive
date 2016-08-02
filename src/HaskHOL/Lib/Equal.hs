@@ -83,11 +83,11 @@ lHand :: HOLTermRep tm cls thry => tm -> HOL cls thry HOLTerm
 lHand = rand . rator
 
 -- | Returns the left hand side of an equation.
-lhs :: MonadThrow m => HOLTerm -> m HOLTerm
+lhs :: HOLTermRep tm cls thry => tm -> HOL cls thry HOLTerm
 lhs tm = fst `fmap` destEq tm
 
 -- | Returns the right hand side of an equation.
-rhs :: MonadThrow m => HOLTerm -> m HOLTerm
+rhs :: HOLTermRep tm cls thry => tm -> HOL cls thry HOLTerm
 rhs tm = snd `fmap` destEq tm
 
 -- Basic Constructors for Equality
@@ -251,7 +251,7 @@ convALL = Conv $ \ tm -> primREFL tm
 convTHEN :: Conversion cls thry -> Conversion cls thry -> Conversion cls thry
 convTHEN c1 c2 = Conv $ \ tm ->
     (do th1@(Thm _ tm') <- runConv c1 tm
-        th2 <- runConv c2 =<< rand tm'
+        th2 <- runConv c2 $ rand tm'
         primTRANS th1 th2) <?> "convTHEN"
 
 convORELSE :: Conversion cls thry -> Conversion cls thry -> Conversion cls thry
@@ -375,11 +375,12 @@ convABS conv = Conv $ \ tm ->
           do th <- runConv conv bod <?> "convABS: conversion failed."
              primABS v th <|> 
                do gv <- genVar ty
-                  gbod <- runConv conv =<< varSubst [(v, gv)] bod
+                  gbod <- runConv conv $ varSubst [(v, gv)] bod
                   gth <- primABS gv gbod
                   let gtm = concl gth
                       v' = variant (frees gtm) v
-                  (l, r) <- pairMapM (alpha v') =<< destEq gtm
+                  tms <- destEq gtm
+                  (l, r) <- pairMapM (alpha v') tms
                   tm' <- mkEq l r
                   primEQ_MP (ruleALPHA gtm tm') gth
       _ -> fail "convABS: not an abstraction."
@@ -422,7 +423,8 @@ convTYABS conv = Conv $ \ tm -> note "convTYABS" $
                   gth <- primTYABS gv gbod
                   let gtm = concl gth
                       v' = variantTyVar (typeVarsInTerm gtm) tv
-                  (l, r) <- pairMapM (alphaTyabs v') =<< destEq gtm
+                  tms <- destEq gtm
+                  (l, r) <- pairMapM (alphaTyabs v') tms
                   tm' <- mkEq l r
                   primEQ_MP (ruleALPHA gtm tm') gth
       _ -> fail "convTYABS: not an abstraction."
@@ -498,7 +500,7 @@ convBINOP conv = Conv $ \ tm -> note "convBINOP" $
 convALPHA :: HOLTermRep tm cls thry => tm -> Conversion cls thry
 convALPHA ptm = Conv $ \ tm ->
     (do v <- toHTm ptm
-        ruleALPHA tm =<< alpha v tm) <?> "convALPHA"
+        ruleALPHA tm $ alpha v tm) <?> "convALPHA"
 
 {-|
   The 'convTYALPHA' conversion converts the bound variable of type abstraction 
@@ -513,7 +515,7 @@ convALPHA ptm = Conv $ \ tm ->
 convTYALPHA :: HOLTypeRep ty cls thry => ty -> Conversion cls thry
 convTYALPHA pty = Conv $ \ tm ->
     (do v <- toHTy pty
-        ruleALPHA tm =<< alphaTyabs v tm) <?> "convTYALPHA"
+        ruleALPHA tm $ alphaTyabs v tm) <?> "convTYALPHA"
 
 {-|
   The 'convGEN_ALPHA' conversion converts the bound variable of a term with a 
@@ -581,7 +583,7 @@ convBETA = Conv $ \ tm -> note "convBETA" $
         (Comb f@(Abs v _) arg)
             | v == arg -> primBETA tm
             | otherwise -> 
-                  primINST [(v, arg)] $ primBETA =<< mkComb f v
+                  primINST [(v, arg)] . primBETA $ mkComb f v
         _ -> fail "not a beta-redex."
 
 {-|
@@ -597,7 +599,7 @@ convTYBETA = Conv $ \ tm -> note "convTYBETA" $
       (TyComb t@(TyAbs tv _) ty)
           | tv == ty -> primTYBETA tm
           | otherwise ->
-                primINST_TYPE [(tv, ty)] $ primTYBETA =<< mkTyComb t tv
+                primINST_TYPE [(tv, ty)] . primTYBETA $ mkTyComb t tv
       _ -> fail "not a type beta-redex."
 
 
@@ -664,7 +666,7 @@ convTOP_SWEEP = _TRY . topSweepQConv
 thenqc :: Conversion cls thry -> Conversion cls thry -> Conversion cls thry
 thenqc conv1 conv2 = Conv $ \ tm ->
     (do th@(Thm _ tm') <- runConv conv1 tm      
-        (do tmth <- runConv conv2 =<< rand tm'
+        (do tmth <- runConv conv2 $ rand tm'
             primTRANS th tmth)
           <|> return th)
     <|> runConv conv2 tm
@@ -673,7 +675,7 @@ thenqc conv1 conv2 = Conv $ \ tm ->
 thencqc :: Conversion cls thry -> Conversion cls thry -> Conversion cls thry
 thencqc conv1 conv2 = Conv $ \ tm ->
     do th@(Thm _ tm') <- runConv conv1 tm       
-       (do tmth <- runConv conv2 =<< rand tm'
+       (do tmth <- runConv conv2 $ rand tm'
            primTRANS th tmth)
          <|> return th
 
@@ -803,7 +805,7 @@ convSUBS pths = Conv $ \ tm -> note "convSUBS" $
        lfts <- mapM (lHand . concl) ths
        gvs <- mapM (genVar . typeOf) lfts
        pat <- subst (zip lfts gvs) tm
-       abTh <- primREFL =<< listMkAbs gvs pat
+       abTh <- primREFL $ listMkAbs gvs pat
        th <- foldlM foldFun abTh ths
        case concl th of
          (Comb _ r)

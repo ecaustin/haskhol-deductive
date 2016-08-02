@@ -72,18 +72,18 @@ tacITAUT_PRIM mvs n gl
          (_FIRST_X_ASSUM tacLEFT_REVERSIBLE `_THEN` 
           _TRY (tacITAUT_PRIM mvs n)) `_ORELSE`
          _FIRST_X_ASSUM (\ th -> tacASSUME th `_THEN`
-                        (let (Forall v _) = concl th
-                             gv = unsafeGenVar $ typeOf v in
-                           (tacMETA_SPEC gv th `_THEN`
-                            tacITAUT_PRIM (gv:mvs) (n-2) `_THEN`
-                            _NO))) `_ORELSE`
+                        (\ g -> let (Forall v _) = concl th in
+                                  do gv <- genVar $ typeOf v
+                                     (tacMETA_SPEC gv th `_THEN`
+                                      tacITAUT_PRIM (gv:mvs) (n-2) `_THEN`
+                                      _NO) g)) `_ORELSE`
          (tacDISJ1 `_THEN` tacITAUT_PRIM mvs n `_THEN` _NO) `_ORELSE`
          (tacDISJ2 `_THEN` tacITAUT_PRIM mvs n `_THEN` _NO) `_ORELSE`
-         (\ gl2@(Goal _ w) -> let (Exists v _) = w
-                                  gv = unsafeGenVar $ typeOf v in
-                                (tacX_META_EXISTS gv `_THEN`
-                                 tacITAUT_PRIM (gv:mvs) (n-2) `_THEN` 
-                                 _NO) gl2) `_ORELSE`
+         (\ gl2@(Goal _ w) -> let (Exists v _) = w in
+                                do gv <- genVar $ typeOf v
+                                   (tacX_META_EXISTS gv `_THEN`
+                                    tacITAUT_PRIM (gv:mvs) (n-2) `_THEN` 
+                                    _NO) gl2) `_ORELSE`
          _FIRST_ASSUM (\ th -> let (v :==> _) = concl th in 
                                  (_SUBGOAL_THEN v 
                                    (tacASSUME . ruleMP th) `_THEN`

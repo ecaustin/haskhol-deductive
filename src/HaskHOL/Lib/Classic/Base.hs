@@ -1,6 +1,7 @@
 module HaskHOL.Lib.Classic.Base where
 
 import HaskHOL.Core
+import qualified HaskHOL.Core.Kernel as K (typeOf)
 
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.DRule
@@ -46,19 +47,16 @@ thmEXISTS = unsafeCacheProof "thmEXISTS" .
 
 convSELECT :: BoolCtxt thry => Conversion cls thry
 convSELECT = Conv $ \ tm -> note "convSELECT" $
-    case runCatch $ findTerm (isEpsOK tm) tm of
-      Right (Comb _ lam@(Abs (Var _ ty) _)) -> 
-        ruleCONV (convLAND convBETA) $
-          rulePINST [(tyA, ty)] [(tmPred, lam)] convSELECT_pth
-      _ -> fail "not a selection."
-  where isEpsOK :: HOLTerm -> HOLTerm -> Bool        
-        isEpsOK tm t 
-            | isBinder "@" t = 
-                  case runCatch $ do (bv, bod) <- destBinder "@" t
-                                     varSubst [(bv, t)] bod of
-                    Right tm' -> tm `aConv` tm'
-                    _ -> False
-            | otherwise = False
+    do pickeps <- findTermM (isEpsOK tm) tm
+       lam <- rand pickeps
+       ty <- typeOf `fmap` bndvar lam
+       ruleCONV (convLAND convBETA) $
+         rulePINST [(tyA, ty)] [(tmPred, lam)] convSELECT_pth
+  where isEpsOK :: HOLTerm -> HOLTerm -> HOL cls thry Bool        
+        isEpsOK tm t@(Bind "@" bv bod) =
+            (do tm' <- varSubst [(bv, t)] bod
+                return $! tm `aConv` tm') <|> return False
+        isEpsOK _ _ = return False
 
         convSELECT_pth :: BoolCtxt thry => HOL cls thry HOLThm
         convSELECT_pth = unsafeCacheProof "convSELECT_pth" .
@@ -112,7 +110,7 @@ tacTAUT :: BoolCtxt thry => Tactic cls thry
 tacTAUT = _REPEAT (tacGEN `_ORELSE` tacCONJ) `_THEN` _REPEAT tacRTAUT
   where tacRTAUT :: BoolCtxt thry => Tactic cls thry
         tacRTAUT g@(Goal _ w) = 
-            let ok t = typeOf t == tyBool && 
+            let ok t = K.typeOf t == tyBool && 
                        test' (findTerm isVar t) && 
                        t `freeIn` w
                 (tm:_) = sort freeIn $ findTerms ok w  in

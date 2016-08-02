@@ -31,8 +31,8 @@ module HaskHOL.Lib.DRule
     ) where
 
 import HaskHOL.Core
-import qualified HaskHOL.Core.Kernel as K (mkComb, mkAbs, typeMatch)
-import qualified HaskHOL.Core.Basics as B (subst)
+import qualified HaskHOL.Core.Kernel as K (inst, typeOf)
+
 import HaskHOL.Lib.Bool
 import HaskHOL.Lib.Equal
 
@@ -94,10 +94,8 @@ ruleMK_DISJ eq1 eq2 =
 -}
 ruleMK_FORALL :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry)
               => tm -> thm -> HOL cls thry HOLThm
-ruleMK_FORALL ptm th =
-    (do v <- toHTm ptm
-        ruleAP_TERM (liftM (inst [(tyA, typeOf v)]) tmForall) $ primABS v th)
-    <?> "ruleMK_FORALL"
+ruleMK_FORALL v th = note "ruleMK_FORALL" $
+    ruleAP_TERM ((inst [(tyA, typeOf v)]) tmForall) $ primABS v th
 
 {-|@
      v     A |- p \<=\> q    
@@ -115,10 +113,8 @@ ruleMK_FORALL ptm th =
 -}
 ruleMK_EXISTS :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry)
               => tm -> thm -> HOL cls thry HOLThm
-ruleMK_EXISTS ptm th =
-    (do v <- toHTm ptm
-        ruleAP_TERM (liftM (inst [(tyA, typeOf v)]) tmExists) $ primABS v th)
-    <?> "ruleMK_EXISTS"
+ruleMK_EXISTS v th = note "ruleMK_EXISTS" $
+    ruleAP_TERM ((inst [(tyA, typeOf v)]) tmExists) $ primABS v th
 
 {-|
   'convMP' applies a provided conversion to a theorem of the form 
@@ -164,16 +160,20 @@ type Instantiation = ([(HOLTerm, Int)], [(HOLTerm, HOLTerm)], SubstTrip)
   provided the instantiation is correctly constructed.  See 'termMatch' for more
   details.
 -}
-instantiate :: Instantiation -> HOLTerm -> HOLTerm
+instantiate :: HOLTermRep tm cls thry 
+            => Instantiation -> tm -> HOL cls thry HOLTerm
 instantiate (xs, tmenv, tyenv) x = 
-    let itm = if tyenv == ([], [], []) then x else instFull tyenv x in
-      if null tmenv then itm
-      else let ttm = try' $ varSubst tmenv itm in
-             if null xs then ttm
-             else case runCatch $ hoBetas itm ttm of
-                    Right res -> res
-                    _         -> ttm
-  where betas :: MonadThrow m => Int -> HOLTerm -> m HOLTerm
+    do itm <- if tyenv == ([], [], []) 
+              then toHTm x 
+              else instFull tyenv `fmap` toHTm x
+       if null tmenv 
+          then return itm
+          else do ttm <- varSubst tmenv itm
+                  if null xs 
+                     then return ttm
+                     else hoBetas itm ttm
+
+  where betas :: Int -> HOLTerm -> HOL cls thry HOLTerm
         betas n tm =
             do (args, lam) <- funpowM n (\ (ls, t) -> 
                                 do (l, r) <- destComb t
@@ -181,24 +181,20 @@ instantiate (xs, tmenv, tyenv) x =
                foldlM (\ l a -> do (v, b) <- destAbs l
                                    varSubst [(v, a)] b) lam args 
 
-        hoBetas :: HOLTerm -> HOLTerm -> Catch HOLTerm
-        hoBetas Var{} _ = fail' "hoBetas"
-        hoBetas Const{} _ = fail' "hoBetas"
+        hoBetas :: HOLTerm -> HOLTerm -> HOL cls thry HOLTerm
+        hoBetas Var{} _ = fail "hoBetas"
+        hoBetas Const{} _ = fail "hoBetas"
         hoBetas (Abs _ bod1) (Abs bv bod2) = 
-            K.mkAbs bv =<< hoBetas bod1 bod2 
-        hoBetas pat tm =
-            let (hop, args) = stripComb pat
-                n = length args in
-              if lookup hop xs == Just n
-              then betas n tm
-              else case (pat, tm) of
-                      (Comb lpat rpat, Comb ltm rtm) -> 
-                          do { lth <- hoBetas lpat ltm
-                             ; (K.mkComb lth =<< hoBetas rpat rtm) <|> 
-                                 K.mkComb lth rtm
-                             } <|> 
-                             (K.mkComb ltm =<< hoBetas rpat rtm)
-                      _ -> fail' "hoBetas"
+            mkAbs bv $ hoBetas bod1 bod2 
+        hoBetas pat@(Comb lpat rpat) tm@(Comb ltm rtm) =
+            let (hop, args) = stripComb pat in
+              do n <- assoc hop xs
+                 if n == length args
+                    then betas n tm
+                    else do { lth <- hoBetas lpat ltm
+                            ; (mkComb lth $ hoBetas rpat rtm) <|> mkComb lth rtm
+                            } <|> (mkComb ltm $ hoBetas rpat rtm)
+        hoBetas _ _ = fail "hoBetas"
 
 {-|
   The 'ruleINSTANTIATE' rule applies an 'Instantiation' to the conclusion of a
@@ -306,54 +302,53 @@ termPMatch lconsts env vtm@Var{} ctm sofar@(insts, homs) =
 termPMatch _ _ (Const vname vty) (Const cname cty) sofar@(insts, homs) =
     if vname == cname
     then if vty == cty then return sofar
-         else let name = mkDummy in
-                do vtm' <- mkVar name vty
-                   ctm' <- mkVar name cty
-                   insts' <- safeInsert (vtm', ctm') insts
-                   return (insts', homs)
+         else do name <- mkDummy
+                 vtm' <- mkVar name vty
+                 ctm' <- mkVar name cty
+                 insts' <- safeInsert (vtm', ctm') insts
+                 return (insts', homs)
     else fail "termPMatch"
 termPMatch lconsts env (Abs vv@(Var _ vty) vbod) 
                        (Abs cv@(Var _ cty) cbod) (insts, homs) =
-    let name = mkDummy in
-      do vv' <- mkVar name vty
-         cv' <- mkVar name cty
-         insts' <- safeInsert (vv', cv') insts
-         termPMatch lconsts ((vv, cv):env) vbod cbod (insts', homs)
+    do name <- mkDummy
+       vv' <- mkVar name vty
+       cv' <- mkVar name cty
+       insts' <- safeInsert (vv', cv') insts
+       termPMatch lconsts ((vv, cv):env) vbod cbod (insts', homs)
 termPMatch lconsts env vtm ctm sofar@(insts, homs) =
     do vhop <- repeatM rator vtm
        if isVar vhop && (vhop `notElem` lconsts) && 
           lookup vhop env == Nothing
-          then let vty = typeOf vtm
-                   cty = typeOf ctm in
-                 do insts' <- if vty == cty then return insts 
-                              else let name = mkDummy in
-                                     do vtm' <- mkVar name vty
-                                        ctm' <- mkVar name cty
-                                        safeInsert (vtm', ctm') insts
-                    return (insts', (env, vtm, ctm):homs)
+          then do vty <- typeOf vtm
+                  cty <- typeOf ctm
+                  insts' <- if vty == cty then return insts 
+                            else do name <- mkDummy
+                                    vtm' <- mkVar name vty
+                                    ctm' <- mkVar name cty
+                                    safeInsert (vtm', ctm') insts
+                  return (insts', (env, vtm, ctm):homs)
           else case (vtm, ctm) of
                  (Comb lv rv, Comb lc rc) ->
                      do sofar' <- termPMatch lconsts env lv lc sofar
                         termPMatch lconsts env rv rc sofar'
                  (TyAbs tvv tbv, TyAbs tvc tbc) ->
-                     termPMatch lconsts env (inst [(tvv, tvc)] tbv) tbc sofar
+                     termPMatch lconsts env (K.inst [(tvv, tvc)] tbv) tbc sofar
                  (TyComb tv tyv, TyComb tc tyc) ->
                      if tyv == tyc then termPMatch lconsts env tv tc sofar
                      else do (i, h) <- termPMatch lconsts env tv tc sofar
-                             let name = mkDummy
+                             name <- mkDummy
                              tv' <- mkVar name tyv
                              tc' <- mkVar name tyc
                              i' <- safeInsert (tv', tc') i
                              return (i', h)
                  _ -> fail "termPMatch"
 
-getTypeInsts :: (MonadCatch m, MonadThrow m) 
-             => HOLTermEnv -> SubstTrip -> m SubstTrip
+getTypeInsts :: HOLTermEnv -> SubstTrip -> HOL cls thry SubstTrip
 getTypeInsts insts i = 
     foldrM (\ (x, t) sofar -> case x of
                                 (Var _ ty) -> 
-                                    K.typeMatch ty (typeOf t) sofar
-                                _ -> fail' "getTypeInsts") i insts
+                                    typeMatch ty (typeOf t) sofar
+                                _ -> fail "getTypeInsts") i insts
 
 termHOMatch :: [HOLTerm] -> SubstTrip  
             -> (HOLTermEnv, [(HOLTermEnv, HOLTerm, HOLTerm)]) 
@@ -364,7 +359,7 @@ termHOMatch lconsts tyenv@(tys, opTys, opOps)
     case vtm of
       (Var _ vty) -> 
         if ctm == vtm then termHOMatch lconsts tyenv (insts, rest)
-        else do tys' <- safeInsert (vty, typeOf ctm) tys
+        else do tys' <- safeInsert (vty, K.typeOf ctm) tys
                 let newtyenv = (tys', opTys, opOps)
                     newinsts = (vtm, ctm):insts
                 termHOMatch lconsts newtyenv (newinsts, rest)
@@ -388,10 +383,10 @@ termHOMatch lconsts tyenv@(tys, opTys, opOps)
                             else safeInsert (vhop, chop) insts
                        else do ginsts <- mapM (\ p -> 
                                                if isVar p then return (p, p)
-                                               else let ty = typeOf p
-                                                        p' = unsafeGenVar ty in
-                                                      return (p, p')) pats
-                               ctm' <- B.subst ginsts ctm
+                                               else let ty = typeOf p in
+                                                      do p' <- genVar ty
+                                                         return (p, p')) pats
+                               ctm' <- subst ginsts ctm
                                let gvs = map snd ginsts
                                abstm <- listMkAbs gvs ctm'
                                vinsts <- safeInsertA (vhop, abstm) insts
@@ -441,8 +436,10 @@ safeInsertA :: MonadThrow m => (HOLTerm, HOLTerm) -> [(HOLTerm, HOLTerm)]
             -> m [(HOLTerm, HOLTerm)]
 safeInsertA = insertByTest aConv
 
-mkDummy :: Text
-mkDummy = let (Var name _) = unsafeGenVar tyA in name
+mkDummy :: HOL cls thry Text
+mkDummy =
+  do n <- tickTermCounter
+     return $! '_' `cons` textShow n
 
 
 
@@ -497,11 +494,9 @@ termUnify vs t1 t2 =
 
            
 -- modify variables at depth
-tryalpha :: HOLTerm -> HOLTerm -> HOLTerm
+tryalpha :: HOLTerm -> HOLTerm -> HOL cls thry HOLTerm
 tryalpha v tm = 
-    case runCatch $ alpha v tm <|> alpha (variant (frees tm) v) tm of
-      Right res -> res
-      _         -> tm
+    alpha v tm <|> alpha (variant (frees tm) v) tm <|> return tm
 
 
 deepAlpha :: [(Text, Text)] -> HOLTerm -> HOL cls thry HOLTerm
@@ -509,7 +504,7 @@ deepAlpha [] tm = return tm
 deepAlpha env tm@(Abs var@(Var vn vty) bod) =
     (do ((_, vn'), newenv) <- remove (\ (x, _) -> x == vn) env
         var' <- mkVar vn' vty
-        let (Abs var'' ib) = tryalpha var' tm
+        (Abs var'' ib) <- tryalpha var' tm
         ib' <- deepAlpha newenv ib
         mkAbs var'' ib')
     <|> mkAbs var (deepAlpha env bod)
@@ -526,7 +521,7 @@ matchBvs (Abs (Var n1 _) b1)
 matchBvs (Comb l1 r1) (Comb l2 r2) acc =
     matchBvs l1 l2 $ matchBvs r1 r2 acc
 matchBvs (TyAbs tv1 tb1) (TyAbs tv2 tb2) acc =
-    matchBvs (inst [(tv1, tv2)] tb1) tb2 acc
+    matchBvs (K.inst [(tv1, tv2)] tb1) tb2 acc
 matchBvs (TyComb t1 _) (TyComb t2 _) acc =
     matchBvs t1 t2 acc
 matchBvs _ _ acc = acc
@@ -583,21 +578,20 @@ ruleGEN_PART_MATCH partFun thm ptm =
 ruleMATCH_MP :: (BoolCtxt thry, HOLThmRep thm1 cls thry, 
                  HOLThmRep thm2 cls thry) 
              => thm1 -> thm2 -> HOL cls thry HOLThm
-ruleMATCH_MP pith pth = 
+ruleMATCH_MP pith pth = note "ruleMATCH_MP" $
     do ith <- toHThm pith
        th <- toHThm pth
        sth <- let tm = concl ith
                   (avs, bod) = stripForall tm in
-                case destImp bod of
-                  Just (ant, _) -> 
-                      (let (svs, pvs) = partition (`varFreeIn` ant) avs in
-                         if null pvs then return ith
-                         else do th1 <- ruleSPECL avs $ primASSUME tm
-                                 th2 <- ruleGENL svs . ruleDISCH ant . 
-                                          ruleGENL pvs $ ruleUNDISCH th1
-                                 th3 <- ruleDISCH tm th2
-                                 ruleMP th3 ith) <?> "ruleMATCH_MP"
-                  _ -> fail "ruleMATCH_MP: not an implication"
+                do (ant, _) <- destImp bod <?> "not an implication."
+                   let (svs, pvs) = partition (`varFreeIn` ant) avs
+                   if null pvs 
+                      then return ith
+                      else do th1 <- ruleSPECL avs $ primASSUME tm
+                              th2 <- ruleGENL svs . ruleDISCH ant . 
+                                       ruleGENL pvs $ ruleUNDISCH th1
+                              th3 <- ruleDISCH tm th2
+                              ruleMP th3 ith
        thm <- (rulePART_MATCH (liftM fst . destImp) sth $ concl th) <?> 
                 "ruleMATCH_MP: no match"
        ruleMP thm th
@@ -607,7 +601,8 @@ convHIGHER_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry)
 convHIGHER_REWRITE ths top = Conv $ \ tm ->
     do thl <- mapM (ruleGINST . ruleSPEC_ALL) ths
        let concs = map concl thl
-       (preds, pats) <- liftM unzip $ mapM destComb =<< mapM lhs concs
+       lfts <- mapM lhs concs
+       (preds, pats) <- unzip `fmap` mapM destComb lfts
        betaFns <- map2 convBETA_VAR preds concs
        let asmList = zip pats . zip preds $ zip thl betaFns
            mnet = foldr (\ p n -> netEnter [] (p, p) n) netEmpty pats
@@ -627,25 +622,21 @@ convHIGHER_REWRITE ths top = Conv $ \ tm ->
        ruleCONV betaFn . primINST tmenv . primINST tmenv0 $
          primINST_TYPE_FULL tyenv0 th
   where convBETA_VAR :: HOLTerm -> HOLTerm -> Conversion cls thry
-        convBETA_VAR v tm =
-            case runCatch $ freeBeta v tm of
-              Right res -> res
-              _         -> _FAIL "convBETA_VAR"
+        convBETA_VAR v tm = _NOTE "convBETA_VAR" $ freeBeta v tm
 
-        freeBeta :: HOLTerm -> HOLTerm -> Catch (Conversion cls thry)
+        freeBeta :: HOLTerm -> HOLTerm -> Conversion cls thry
         freeBeta v (Abs bv bod)
-            | v == bv = fail' "freeBeta"
-            | otherwise = liftM convABS (freeBeta v bod)
-        freeBeta v tm =
+            | v == bv = _FAIL "freeBeta"
+            | otherwise = convABS (freeBeta v bod)
+        freeBeta v tm@(Comb l r) =
             let (op, args) = stripComb tm in
-              if null args then fail' "freeBeta"
-              else if op == v then return . convBETA_CONVS $ length args
-                   else do (l, r) <- destComb tm
-                           do { lconv <- freeBeta v l
-                              ; do { rconv <- freeBeta v r
-                                   ; return (convCOMB2 lconv rconv)
-                                   } <|> return (convRATOR lconv)
-                              } <|> liftM convRAND (freeBeta v r)
+              if op == v then convBETA_CONVS (length args)
+              else let lconv = freeBeta v l
+                       rconv = freeBeta v r in
+                     (convCOMB2 lconv rconv) `_ORELSE`
+                     (convRATOR lconv) `_ORELSE`
+                     (convRAND rconv)
+        freeBeta _ _ = _FAIL "freeBeta"
 
         convBETA_CONVS :: Int -> Conversion cls thry
         convBETA_CONVS 1 = _TRY convBETA

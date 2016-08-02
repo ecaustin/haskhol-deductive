@@ -84,14 +84,16 @@ module HaskHOL.Lib.Bool
     ) where
 
 import HaskHOL.Core
-import qualified HaskHOL.Core.Kernel as K (typeMatch)
 
 import HaskHOL.Lib.Equal
 
 import HaskHOL.Lib.Bool.Context
 import HaskHOL.Lib.Bool.PQ
 
+pattern T :: HOLTerm
 pattern T <- Const "T" _
+
+pattern F :: HOLTerm
 pattern F <- Const "F" _
 
 tmP, tmQ, tmR, tmT, tmX, tmPred :: BoolCtxt thry => HOL cls thry HOLTerm
@@ -115,8 +117,8 @@ tmPred = serve [bool| P:A->bool |]
 
   Fails if the provided term substitution environment is ill-formed.
 -}
-rulePINST :: (Inst a b, HOLTermRep tm1 cls thry, HOLTermRep tm2 cls thry, 
-              HOLThmRep thm cls thry) 
+rulePINST :: (InstHOL a b cls thry, HOLTermRep tm1 cls thry, 
+              HOLTermRep tm2 cls thry, HOLThmRep thm cls thry) 
           => [(a, b)] -> [(tm1, tm2)] -> thm -> HOL cls thry HOLThm
 rulePINST tyenv ptmenv thm =
     do tmenv <- mapM (toHTm `ffCombM` toHTm) ptmenv
@@ -406,7 +408,7 @@ ruleUNDISCH_ALL :: (BoolCtxt thry, HOLThmRep thm cls thry)
 ruleUNDISCH_ALL pthm =
     do thm <- toHThm pthm
        case concl thm of
-         (:==>){} -> ruleUNDISCH_ALL =<< ruleUNDISCH thm
+         (:==>){} -> ruleUNDISCH_ALL $ ruleUNDISCH thm
          _      -> return thm
 
 {-|@
@@ -532,7 +534,7 @@ ruleSPEC :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry)
 ruleSPEC ptm pthm = note "ruleSPEC" $
     do thm <- toHThm pthm
        case concl thm of
-         (Bind' "!" ab@(Abs (Var _ bvty) _)) ->
+         (BindWhole "!" ab@(Abs (Var _ bvty) _)) ->
              do tm <- toHTm ptm
                 pth' <- rulePINST [(tyA, bvty)] [ (tmPred, ab), (tmX, tm)
                                                 ] ruleSPEC_pth
@@ -559,7 +561,8 @@ ruleSPEC ptm pthm = note "ruleSPEC" $
 ruleSPECL :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
           => [tm] -> thm -> HOL cls thry HOLThm
 ruleSPECL ptms pthm = 
-    (revItlistM ruleSPEC ptms =<< toHThm pthm) <?> "ruleSPECL"
+    (do thm <- toHThm pthm
+        revItlistM ruleSPEC ptms thm) <?> "ruleSPECL"
                                  
 {-|@
      A |- !x. t       
@@ -573,7 +576,7 @@ ruleSPEC_VAR :: (BoolCtxt thry, HOLThmRep thm cls thry)
              => thm -> HOL cls thry (HOLTerm, HOLThm)
 ruleSPEC_VAR pthm =
     (do thm@(Thm _ x) <- toHThm pthm
-        v <- bndvar =<< rand x
+        v <- bndvar $ rand x
         let bv = variant (thmFrees thm) v
         thm' <- ruleSPEC bv thm
         return (bv, thm'))
@@ -617,7 +620,8 @@ ruleISPEC ptm pthm = note "ruleISPEC" $
        case concl thm of
          (Forall (Var _ ty) _) ->
            do tm <- toHTm ptm
-              tyenv <- typeMatch ty (typeOf tm) <?> "can't instantiate theorem."
+              tyenv <- typeMatch_NIL ty (typeOf tm) <?>
+                         "can't instantiate theorem."
               (ruleSPEC tm (primINST_TYPE_FULL tyenv thm)) <?> 
                 "type variable(s) free in assumption list."
          _ -> fail "theorem not universally quantified."
@@ -643,12 +647,12 @@ ruleISPECL ptms pthm = note "ruleISPECL" $
        thm@(Thm _ x) <- toHThm pthm
        let (vs, _) = stripForall x
        (avs, _) <- trySplitAt (length tms) vs <?> "instantiation list too long."
-       tyenv <- (foldr2M tyFun ([], [], []) avs $ map typeOf tms) <?>
+       tyenv <- (foldr2M tyFun ([], [], []) avs =<< mapM typeOf tms) <?>
                   "can't instantiate theorem."
        (ruleSPECL tms $ primINST_TYPE_FULL tyenv thm) <?>
          "type variable(s) free in assumption list."
   where tyFun :: HOLTerm -> HOLType -> SubstTrip -> HOL cls thry SubstTrip
-        tyFun (Var _ ty1) ty2 acc = K.typeMatch ty1 ty2 acc
+        tyFun (Var _ ty1) ty2 acc = typeMatch ty1 ty2 acc
         tyFun _ _ _ = fail "tyFun"
 
 {-|@
@@ -670,7 +674,7 @@ ruleGEN px pthm = note "ruleGEN" $
        case x of
          (Var _ tyx) ->
            do qth <- primINST_TYPE [(tyA, tyx)] ruleGEN_pth
-              ptm <- rand =<< rand (concl qth)
+              ptm <- rand $ rand (concl qth)
               th1 <- ruleEQT_INTRO pthm
               th2 <- primABS x th1 <?> "term free in the assumption list."
               phi <- lHand $ concl th2
@@ -697,8 +701,9 @@ ruleGEN px pthm = note "ruleGEN" $
 -}
 ruleGENL :: (BoolCtxt thry, HOLTermRep tm cls thry, HOLThmRep thm cls thry) 
          => [tm] -> thm -> HOL cls thry HOLThm
-ruleGENL ptms pthm = 
-    (itlistM ruleGEN ptms =<< toHThm pthm) <?> "ruleGENL"
+ruleGENL ptms pthm =
+    (do thm <- toHThm pthm 
+        itlistM ruleGEN ptms thm) <?> "ruleGENL"
 
 {-|@
        A |- t
@@ -1095,7 +1100,7 @@ ruleEXISTENCE :: (BoolCtxt thry, HOLThmRep thm cls thry)
 ruleEXISTENCE pthm = note "ruleEXISTENCE" $
     do thm <- toHThm pthm
        case concl thm of
-         (Bind' "?!" ab@(Abs (Var _ ty) _)) ->
+         (BindWhole "?!" ab@(Abs (Var _ ty) _)) ->
              do pth' <- rulePINST [(tyA, ty)] [(tmPred, ab)] ruleEXISTENCE_pth
                 ruleMP pth' thm
          _ -> fail "not a unique-existential."
