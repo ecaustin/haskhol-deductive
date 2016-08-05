@@ -109,7 +109,7 @@ type JustificationList cls thry =
 data Goal = Goal [(Text, HOLThm)] HOLTerm deriving (Eq, Typeable)
 
 instance ShowHOL Goal where
-    showHOL = ppGoal
+    buildDoc = ppGoal
 
 ppGoal :: Goal -> PrintM s Doc
 ppGoal (Goal asl w) = 
@@ -134,10 +134,10 @@ data GoalState cls thry =
        deriving Typeable
 
 instance ShowHOL (GoalState cls thry) where
-    showHOL gs = setPrec 1 >> ppGoalState gs
-    showHOLList [] = return $! text "Empty goalstack"
-    showHOLList [gs] = showHOL gs
-    showHOLList (gs@(GS _ g _):GS _ g0 _:_) =
+    buildDoc gs = setPrec 1 >> ppGoalState gs
+    buildDocList [] = return $! text "Empty goalstack"
+    buildDocList [gs] = buildDoc gs
+    buildDocList (gs@(GS _ g _):GS _ g0 _:_) =
         let p = length g - length g0
             p' = if p < 1 then 1 else p + 1 in
           setPrec p' >> ppGoalState gs
