@@ -108,9 +108,9 @@ thmSELECT_LEMMA = cacheProof "thmSELECT_LEMMA" ctxtTrivia $
 
 liftFunction :: (TriviaCtxt thry, HOLThmRep thm1 Theory thry,
                  HOLThmRep thm2 Theory thry, HOLThmRep thm3 Theory thry,
-                 HOLThmRep thm4 Theory thry) => thm1 -> thm2 -> thm3 -> Text 
-             -> thm4 -> HOL Theory thry (HOLThm, HOLThm)
-liftFunction ptybij2 refl_th trans_th fname pwth =
+                 HOLThmRep thm4 Theory thry) => thm1 -> thm2 -> thm3 
+             -> (Text, thm4) -> HOL Theory thry (HOLThm, HOLThm)
+liftFunction ptybij2 refl_th trans_th (fname, pwth) =
     getLiftedFunction fname <|> (note "liftFunction" $
       do tybij2 <- toHThm ptybij2
          case concl tybij2 of
