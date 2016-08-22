@@ -10,6 +10,7 @@
 -}
 module HaskHOL.Lib.Simp
        ( GConversion
+       , CConv(..)
        , convREWR
        , convIMP_REWR
        , convORDERED_REWR
