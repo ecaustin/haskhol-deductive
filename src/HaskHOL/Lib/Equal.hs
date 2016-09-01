@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE GADTs, ScopedTypeVariables #-}
 {-|
   Module:    HaskHOL.Lib.Equal
@@ -202,14 +203,6 @@ ruleMK_BINOP op lthm rthm =
 
 
  -- Conversions and combinator type classes
-
-{-|
-  The 'Conversion' type is a special class of derived rules that accepts a
-  term and returns a theorem proving its equation with an equivalent term.
--}
-data Conversion cls thry where
-  Conv :: (HOLTerm -> HOL cls thry HOLThm) -> Conversion cls thry
-  deriving Typeable
 
 runConv :: HOLTermRep tm cls thry 
         => Conversion cls thry -> tm -> HOL cls thry HOLThm

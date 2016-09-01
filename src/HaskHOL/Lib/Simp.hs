@@ -20,6 +20,7 @@ module HaskHOL.Lib.Simp
        , netOfConv
        , netOfCong
        , mkRewrites
+       , convREWRITES'
        , convREWRITES
        , Prover
        , mkProver
@@ -45,7 +46,8 @@ module HaskHOL.Lib.Simp
        , setBasicCongs
        , extendBasicCongs
        , basicCongs
-       , convGENERAL_REWRITE
+       , convCACHED_GENERAL_REWRITE
+       , convCACHED_REWRITE
        , convGEN_REWRITE
        , convPURE_REWRITE
        , convREWRITE
@@ -165,15 +167,15 @@ putNet net = put (ConversionNet net)
 makeAcidic ''ConversionNet ['getNet, 'putNet]
 
 
+-- Interpreted code must be of type HOL Proof thry, so we need to
+-- generalize it when we recall it.
+mkConvGeneral :: Conversion Proof thry -> Conversion cls thry
+mkConvGeneral cnv = Conv $ \ tm -> mkProofGeneral $ runConv cnv tm
+
 unCConv :: (Typeable thry, BoolCtxt thry) => CConv -> Conversion cls thry
 unCConv (HINT c m) = mkConvGeneral . Conv $ \ tm ->
     do cnv <- runHOLHint ("return " ++ c) ("HaskHOL.Lib.Equal":[m])
        runConv cnv tm
--- Interpreted code must be of type HOL Proof thry, so we need to
--- generalize it when we recall it.
-  where mkConvGeneral :: Conversion Proof thry -> Conversion cls thry
-        mkConvGeneral cnv = Conv $ \ tm ->
-            mkProofGeneral $ runConv cnv tm
 unCConv (BASEABS v th) = Conv $ \ tm ->
     case tm of
       (Abs y (Comb t y'))
@@ -367,11 +369,16 @@ mkRewrites cf pth pths =
                               foldrM ruleIMP_EXISTS kth fvs
                         _ -> fail "collectCondition"
 
-convREWRITES :: BoolCtxt thry => Net GConversion -> Conversion cls thry
-convREWRITES net = Conv $ \ tm ->
+convREWRITES' :: BoolCtxt thry 
+              => Net (Int, a) -> (a -> HOLTerm -> HOL cls thry b) 
+              -> HOLTerm -> HOL cls thry b
+convREWRITES' net f tm =
     let pconvs = netLookup tm net in
-      tryFind (\ (_, cnv) -> runConv (unCConv cnv) tm) pconvs
-      <?> "convREWRITES"
+      tryFind (\ (_, cnv) -> f cnv tm) pconvs <?> "convREWRITES'"
+
+convREWRITES :: BoolCtxt thry => Net GConversion -> Conversion cls thry
+convREWRITES net = Conv $ \ tm -> note "convREWRITES" $
+    convREWRITES' net (\ cnv x -> runConv (unCConv cnv) x) tm
 
 -- provers
 data Prover cls thry = 
@@ -687,29 +694,46 @@ basicCongs =
        return congs
 
 -- main rewriting conversions
-convGENERAL_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => Bool 
-                    -> (Conversion cls thry -> Conversion cls thry) 
-                    -> Net GConversion -> [thm] 
-                    -> Conversion cls thry
-convGENERAL_REWRITE rep cnvl builtin_net ths = Conv $ \ tm ->
-    do ths_canon <- foldrM (mkRewrites False) [] ths
-       final_net <- foldrM (netOfThm rep) builtin_net ths_canon
-       runConv (cnvl (convREWRITES final_net)) tm
+convCACHED_GENERAL_REWRITE :: forall thm cls thry. 
+                              (BoolCtxt thry, HOLThmRep thm cls thry) 
+                           => Bool -> Bool
+                           -> (Conversion cls thry -> Conversion cls thry) 
+                           -> Net GConversion -> [thm] 
+                           -> Conversion cls thry
+convCACHED_GENERAL_REWRITE cache rep cnvl builtin_net pths = Conv $ \ tm ->
+    do ths <- mapM toHThm pths
+       final_net <- if not cache then mkProofGeneral $ buildNet ths
+                    else cacheNet ths buildNet
+       let fun :: HOLTerm -> HOL cls thry HOLThm
+           fun = convREWRITES' final_net $ \ cnv x -> 
+                   runConv (mkConvGeneral cnv) x
+       runConv (cnvl $ Conv fun) tm
+ where buildNet :: BoolCtxt thry 
+                => [HOLThm] -> HOL Proof thry (Net (Int, Conversion Proof thry))
+       buildNet ths =
+         do ths_canon <- foldrM (mkRewrites False) [] ths
+            net <- foldrM (netOfThm rep) builtin_net ths_canon
+            return $! netMap (\ (x, cnv) -> (x, unCConv cnv)) net
+
+convCACHED_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry)
+                   => (Conversion cls thry -> Conversion cls thry) -> [thm] 
+                   -> Conversion cls thry
+convCACHED_REWRITE cnvl = convCACHED_GENERAL_REWRITE True False cnvl netEmpty
 
 convGEN_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry)
                 => (Conversion cls thry -> Conversion cls thry) -> [thm] 
                 -> Conversion cls thry
-convGEN_REWRITE cnvl = convGENERAL_REWRITE False cnvl netEmpty
+convGEN_REWRITE cnvl = convCACHED_GENERAL_REWRITE False False cnvl netEmpty
 
 convPURE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm] 
                  -> Conversion cls thry
-convPURE_REWRITE = convGENERAL_REWRITE True convTOP_DEPTH netEmpty
+convPURE_REWRITE = convCACHED_GENERAL_REWRITE False True convTOP_DEPTH netEmpty
 
 convREWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm]
             -> Conversion cls thry
 convREWRITE thl = Conv $ \ tm ->
     do net <- basicNet
-       runConv (convGENERAL_REWRITE True convTOP_DEPTH net thl) tm
+       runConv (convCACHED_GENERAL_REWRITE False True convTOP_DEPTH net thl) tm
 
 convREWRITE_NIL :: BoolCtxt thry => Conversion cls thry
 convREWRITE_NIL = convREWRITE ([] :: [HOLThm])
@@ -717,13 +741,13 @@ convREWRITE_NIL = convREWRITE ([] :: [HOLThm])
 convPURE_ONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) => [thm] 
                       -> Conversion cls thry
 convPURE_ONCE_REWRITE = 
-    convGENERAL_REWRITE False convONCE_DEPTH netEmpty
+    convCACHED_GENERAL_REWRITE False False convONCE_DEPTH netEmpty
 
 convONCE_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry) 
                  => [thm] -> Conversion cls thry
 convONCE_REWRITE thl = Conv $ \ tm ->
     do net <- basicNet
-       runConv (convGENERAL_REWRITE False convONCE_DEPTH net thl) tm
+       runConv (convCACHED_GENERAL_REWRITE False False convONCE_DEPTH net thl) tm
 
 -- rewriting rules and tactics
 ruleGEN_REWRITE :: (BoolCtxt thry, HOLThmRep thm cls thry, 
