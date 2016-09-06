@@ -329,7 +329,7 @@ condsElimConv dfl = Conv $ \ tm ->
     (do t <- findConditional [] tm
         p <- lHand $ rator t
         prosimps <- basicNet
-        let conv = convDEPTH (convREWRITES prosimps)
+        let conv = convDEPTH (gconvREWRITES prosimps)
         thNew <- case p of
                    F -> runConv conv tm
                    T -> runConv conv tm
@@ -341,14 +341,14 @@ condsElimConv dfl = Conv $ \ tm ->
                           simp0 <- netOfThm False ath0 prosimps
                           simp1 <- netOfThm False ath1 prosimps
                           th0 <- ruleDISCH asm0 $ 
-                                   runConv (convDEPTH $ convREWRITES simp0) tm
+                                   runConv (convDEPTH $ gconvREWRITES simp0) tm
                           th1 <- ruleDISCH asm1 $
-                                   runConv (convDEPTH $ convREWRITES simp1) tm
+                                   runConv (convDEPTH $ gconvREWRITES simp1) tm
                           th2 <- ruleCONJ th0 th1
                           let convTh = if dfl then convCONDS_ELIM_thCond
                                        else convCONDS_ELIM_thCond'
                           th3 <- ruleMATCH_MP convTh th2
-                          let cnv = _TRY (convREWRITES prosimps)
+                          let cnv = _TRY (gconvREWRITES prosimps)
                               proptsimpConv = convBINOP cnv `_THEN` cnv
                           rth <- runConv proptsimpConv $ rand (concl th3)
                           primTRANS th3 rth

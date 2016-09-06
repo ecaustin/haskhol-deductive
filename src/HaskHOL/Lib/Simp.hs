@@ -20,8 +20,9 @@ module HaskHOL.Lib.Simp
        , netOfConv
        , netOfCong
        , mkRewrites
-       , convREWRITES'
+       , convREWRITES_PRIM
        , convREWRITES
+       , gconvREWRITES
        , Prover
        , mkProver
        , augment
@@ -369,16 +370,19 @@ mkRewrites cf pth pths =
                               foldrM ruleIMP_EXISTS kth fvs
                         _ -> fail "collectCondition"
 
-convREWRITES' :: BoolCtxt thry 
-              => Net (Int, a) -> (a -> HOLTerm -> HOL cls thry b) 
-              -> HOLTerm -> HOL cls thry b
-convREWRITES' net f tm =
+convREWRITES_PRIM :: Net (Int, a) -> (a -> HOLTerm -> HOL cls thry b) 
+                  -> HOLTerm -> HOL cls thry b
+convREWRITES_PRIM net f tm =
     let pconvs = netLookup tm net in
       tryFind (\ (_, cnv) -> f cnv tm) pconvs <?> "convREWRITES'"
 
-convREWRITES :: BoolCtxt thry => Net GConversion -> Conversion cls thry
+convREWRITES :: Net (Int, Conversion cls thry) -> Conversion cls thry
 convREWRITES net = Conv $ \ tm -> note "convREWRITES" $
-    convREWRITES' net (\ cnv x -> runConv (unCConv cnv) x) tm
+    convREWRITES_PRIM net (\ cnv x -> runConv cnv x) tm
+
+gconvREWRITES :: BoolCtxt thry => Net GConversion -> Conversion cls thry
+gconvREWRITES net = Conv $ \ tm -> note "gconvREWRITES" $
+    convREWRITES_PRIM net (\ cnv x -> runConv (unCConv cnv) x) tm
 
 -- provers
 data Prover cls thry = 
@@ -705,7 +709,7 @@ convCACHED_GENERAL_REWRITE cache rep cnvl builtin_net pths = Conv $ \ tm ->
        final_net <- if not cache then mkProofGeneral $ buildNet ths
                     else cacheNet ths buildNet
        let fun :: HOLTerm -> HOL cls thry HOLThm
-           fun = convREWRITES' final_net $ \ cnv x -> 
+           fun = convREWRITES_PRIM final_net $ \ cnv x -> 
                    runConv (mkConvGeneral cnv) x
        runConv (cnvl $ Conv fun) tm
  where buildNet :: BoolCtxt thry 
