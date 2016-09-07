@@ -19,7 +19,6 @@ library
                         OverloadedStrings, PatternSynonyms, QuasiQuotes, 
                         TemplateHaskell, TypeFamilies
     build-depends:   base >= 4.9 && < 5.0
-                   , template-haskell >= 2.11
                    , ansi-wl-pprint >= 0.6
                    , haskhol-core >= 1.3
 
