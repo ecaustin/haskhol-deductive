@@ -28,6 +28,7 @@ type family IndDefsCtxt a :: Constraint where
 type IndDefsType = ExtThry IndDefsThry TheoremsType
 
 type family IndDefsContext a :: Bool where
+    IndDefsContext UnsafeThry = 'True
     IndDefsContext BaseThry = 'False
     IndDefsContext (ExtThry a b) = IndDefsContext b || (a == IndDefsThry)
 

@@ -39,6 +39,7 @@ type family BoolCtxt a :: Constraint where
 type BoolType = ExtThry BoolThry BaseThry
 
 type family BoolContext a :: Bool where
+    BoolContext UnsafeThry = 'True
     BoolContext BaseThry = 'False
     BoolContext (ExtThry a b) = BoolContext b || (a == BoolThry)   
 

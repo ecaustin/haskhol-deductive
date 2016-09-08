@@ -30,6 +30,7 @@ type family TriviaCtxt a :: Constraint where
 type TriviaType = ExtThry TriviaThry ClassicType
 
 type family TriviaContext a :: Bool where
+    TriviaContext UnsafeThry = 'True
     TriviaContext BaseThry = 'False
     TriviaContext (ExtThry a b) = TriviaContext b || (a == TriviaThry)
 

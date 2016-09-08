@@ -45,6 +45,7 @@ module HaskHOL.Lib.Classic
     , isCond
     , mkCond
     , thmCOND_CLAUSES
+    , thmCOND_RAND
     , convCONTRAPOS
     , tacREFUTE_THEN
     , thmSKOLEM
@@ -152,6 +153,13 @@ thmNOT_IMP = cacheProof "thmNOT_IMP" ctxtClassic $
 
 thmCOND_CLAUSES :: ClassicCtxt thry => HOL cls thry HOLThm
 thmCOND_CLAUSES = Base.thmCOND_CLAUSES
+
+thmCOND_RAND :: ClassicCtxt thry => HOL cls thry HOLThm
+thmCOND_RAND = cacheProof "thmCOND_RAND" ctxtClassic .
+  prove [txt| !b (f:A->B) x y. f (if b then x else y) = 
+                               (if b then f x else f y) |] $
+    _REPEAT tacGEN `_THEN` tacBOOL_CASES [txt| b:bool |] `_THEN` tacREWRITE_NIL
+
 
 thmMONO_COND :: ClassicCtxt thry => HOL cls thry HOLThm
 thmMONO_COND = Base.thmMONO_COND

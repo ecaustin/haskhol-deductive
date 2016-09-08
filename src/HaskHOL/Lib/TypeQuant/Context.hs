@@ -28,6 +28,7 @@ type family TypeQuantCtxt a :: Constraint where
 type TypeQuantType = ExtThry TypeQuantThry TriviaType
 
 type family TypeQuantContext a :: Bool where
+    TypeQuantContext UnsafeThry = 'True
     TypeQuantContext BaseThry = 'False
     TypeQuantContext (ExtThry a b) = TypeQuantContext b || (a == TypeQuantThry)
 

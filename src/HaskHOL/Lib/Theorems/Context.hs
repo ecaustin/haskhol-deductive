@@ -28,6 +28,7 @@ type family TheoremsCtxt a :: Constraint where
 type TheoremsType = ExtThry TheoremsThry BoolType
 
 type family TheoremsContext a :: Bool where
+    TheoremsContext UnsafeThry = 'True
     TheoremsContext BaseThry = 'False
     TheoremsContext (ExtThry a b) = TheoremsContext b || (a == TheoremsThry) 
 

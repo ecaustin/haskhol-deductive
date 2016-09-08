@@ -31,6 +31,7 @@ type family ClassicCtxt a :: Constraint where
 type ClassicType = ExtThry ClassicThry IndDefsType
 
 type family ClassicContext a :: Bool where
+    ClassicContext UnsafeThry = 'True
     ClassicContext BaseThry = 'False
     ClassicContext (ExtThry a b) = ClassicContext b || (a == ClassicThry)
 

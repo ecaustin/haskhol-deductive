@@ -24,6 +24,7 @@ module HaskHOL.Lib.Canon
     , convGEN_NNF
     , convNNF
     , convNNFC
+    , convPROP_ATOM
     ) where
 
 import HaskHOL.Core
@@ -923,5 +924,16 @@ convNNFC = convGEN_NNF True (_ALL, \ t -> do th1 <- primREFL t
                                              th2 <- primREFL $ mkNeg t
                                              return (th1, th2))
                                                      
-
-               
+convPROP_ATOM :: Conversion cls thry -> Conversion cls thry
+convPROP_ATOM conv = Conv $ \ tm ->
+  case tm of
+    (Comb (Const op _) Abs{})
+        | op == "!" || op == "?" || op == "?!" ->
+            runConv (convBINDER (convPROP_ATOM conv)) tm
+        | otherwise -> runConv (_TRY conv) tm
+    (Comb (Comb (Const op (TyFun TyBool _)) _) _)
+        | op == "/\\" || op == "\\/" || op == "==>" || op == "=" ->
+            runConv (convBINOP (convPROP_ATOM conv)) tm
+        | otherwise -> runConv (_TRY conv) tm
+    (Comb (Const "~" _) _) -> runConv (convRAND (convPROP_ATOM conv)) tm
+    _ -> runConv (_TRY conv) tm

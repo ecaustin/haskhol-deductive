@@ -175,7 +175,7 @@ mkConvGeneral cnv = Conv $ \ tm -> mkProofGeneral $ runConv cnv tm
 
 unCConv :: (Typeable thry, BoolCtxt thry) => CConv -> Conversion cls thry
 unCConv (HINT c m) = mkConvGeneral . Conv $ \ tm ->
-    do cnv <- runHOLHint ("return " ++ c) ("HaskHOL.Lib.Equal":[m])
+    do cnv <- runHOLHint c ("HaskHOL.Lib.Equal":[m])
        runConv cnv tm
 unCConv (BASEABS v th) = Conv $ \ tm ->
     case tm of
